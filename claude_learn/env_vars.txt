@@ -1,0 +1,24 @@
+# Bloomberg API
+BLOOMBERG_DL_ACCOUNT_NUMBER=your_account_number
+BLOOMBERG_DL_CLIENT_ID=your_client_id  
+BLOOMBERG_DL_CLIENT_SECRET=your_client_secret
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=your_password  # optional
+
+# SQL Server
+SQL_SERVER=your_server
+SQL_DATABASE=your_database
+SQL_USERNAME=your_username  # optional if using Windows auth
+SQL_PASSWORD=your_password  # optional if using Windows auth
+SQL_USE_WINDOWS_AUTH=false  # set to true for Windows authentication
+
+# Polling Configuration (optional)
+POLL_INTERVAL=15  # seconds between polls
+MAX_RETRIES=20    # max retries before marking as failed
+BATCH_SIZE=10     # max requests to process per iteration
+
+pip install redis pyodbc oauthlib requests-oauthlib
