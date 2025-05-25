@@ -1,0 +1,52 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.eggs/
+dist/
+build/
+develop-eggs/
+parts/
+wheels/
+pip-wheel-metadata/
+pip-manifest.txt
+pip-log.txt
+*.egg-info/
+*.pth
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+virtualenv/
+myenv/
+instance/
+_build/
+.python-version
+
+# Interpreter binary caches
+__pypackages__/
+.pytest_cache/
+.ipython
+# pyenv
+.pyenv/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.log
+*.rpt
+*.json
+.swp
+.vscode/
+
+# mypy
+.mypy_cache/
