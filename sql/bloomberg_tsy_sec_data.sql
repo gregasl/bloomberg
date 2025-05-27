@@ -9,6 +9,7 @@ end
 go
 
 create table bloomberg_tsy_sec_data(
+    
     business_date date NOT NULL,
     cusip char(9) NOT NULL,
     ISIN char(12) NOT NULL,

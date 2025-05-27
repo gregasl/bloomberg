@@ -1,4 +1,9 @@
-I would like to create a python program to make requests to the bloomberg rest api.  I want to use 2 programs 1 to send the requests and 1 to poll for the responses.  The programs should comunicate  between each other and the outside processes through redis and the sql server database.  The database will be used for persistance.
+I would like to create a python program to make requests to the bloomberg rest api. 
+ I want to use 2 programs 1 to send the requests and 1 to poll for the responses. 
+  The programs should comunicate  between each other and the outside processes through 
+  redis and the sql server database.  The database will be used for persistance.
+  Please only return the response poller side I have the sender.
+  Use the included code to help with the rest interface to bloomberg
 
 import os
 import uuid
