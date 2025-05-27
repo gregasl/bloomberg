@@ -10,12 +10,12 @@ go
 
 create table bloomberg_mbs_sec_data(
     business_date date NOT NULL,
-    cusip char(9) NOT NULL,
-    ISIN char(12) NOT NULL,
-    issuer varchar(16) NOT NULL,
-    sec_type varchar(8) NOT NULL,
-    ticker char(2) not null,
-    sec_description varchar(32) NOT NULL,
+    cusip nchar(9) NOT NULL,
+    ISIN nchar(12) NOT NULL,
+    issuer nvarchar(16) NOT NULL,
+    sec_type nvarchar(8) NOT NULL,
+    ticker nchar(2) not null,
+    sec_description nvarchar(32) NOT NULL,
     maturity_date date NOT NULL,
     issue_date date NOT NULL,
     amt_outstanding money NOT NULL,
@@ -42,3 +42,9 @@ create table bloomberg_mbs_sec_data(
     key_rate_dur_30yr numeric(8,5) NOT NULL default 0.0
 )
 go 
+
+CREATE NONCLUSTERED INDEX bus_date_indx on dbo.bloomberg_mbs_sec_data(business_date)
+go
+
+CREATE NONCLUSTERED INDEX cusip_bus_date on dbo.bloomberg_mbs_sec_data(cusip, business_date)
+go

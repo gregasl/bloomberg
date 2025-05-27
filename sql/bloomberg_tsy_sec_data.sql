@@ -9,15 +9,15 @@ end
 go
 
 create table bloomberg_tsy_sec_data(
-    
+    id BIGINT IDENTITY(1,1) PRIMARY key,
     business_date date NOT NULL,
-    cusip char(9) NOT NULL,
-    ISIN char(12) NOT NULL,
-    sec_type varchar(8) NOT NULL,
-    sec_description varchar(32) NOT NULL,
+    cusip nchar(9) NOT NULL,
+    ISIN nchar(12) NOT NULL,
+    sec_type nvarchar(8) NOT NULL,
+    sec_description nvarchar(32) NOT NULL,
     maturity_date date NOT NULL,
     issue_date date NOT NULL,
-    pricing_source varchar(12) NOT NULL default 'BBG',
+    pricing_source nvarchar(12) NOT NULL default 'BBG',
     inflation_linked bit not null default 0,
     amt_outstanding money NOT NULL,
     amt_central_bank money NOT NULL,
@@ -55,3 +55,9 @@ create table bloomberg_tsy_sec_data(
     oas_key_rate_30yr NUMERIC(8,5) NULL
 )
 go 
+
+CREATE NONCLUSTERED INDEX bus_date_indx on dbo.bloomberg_tsy_sec_data(business_date)
+go
+
+CREATE NONCLUSTERED INDEX cusip_bus_date on dbo.bloomberg_tsy_sec_data(cusip, business_date)
+go
