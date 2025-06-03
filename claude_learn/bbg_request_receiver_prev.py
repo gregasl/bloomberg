@@ -17,12 +17,6 @@ import uuid
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-@dataclass
-class ResponseHandler:
-    name: str
-    condition: Callable[[Dict[str, Any]], bool]
-    handler: Callable[[Dict[str, Any]], None]
-
 class BloombergResponsePoller:
     def __init__(self, redis_host='cacheuat', redis_port=6379, redis_db=0,
                  sql_server_conn_str=None, catalog=None, client_id=None, client_secret=None):

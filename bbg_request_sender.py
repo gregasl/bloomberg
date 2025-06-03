@@ -1,23 +1,14 @@
-import redis
-import json
+import orjson
 import time
 import uuid
 import logging
 from logging.handlers import RotatingFileHandler
 
-from datetime import datetime
-from typing import Dict, Any, Optional
-from urllib.parse import urljoin
+from typing import Dict, Any
 
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
-from bbg_redis import (
-    BloombergRedis,
-    POLLING_QUEUE,
-    REQUEST_QUEUE,
-    RESPONSE_QUEUE,
-    PROCESSING_SET,
-)
+from bbg_redis import BloombergRedis, POLLING_QUEUE, REQUEST_QUEUE
 from bbg_request import BloombergRequest
 
 MAX_LOOPS = 5
@@ -33,9 +24,7 @@ class BloombergRequestSender:
     def __init__(
         self,
         redis_host: str = "cacheuat",
-        redis_port: int = 6379,
-        redis_db: int = 0,
-        server: str = None,
+        db_server: str = "asldb03",
         db_port: str = "1433",
         _database: str = "playdb",
         catalog=None,
@@ -47,17 +36,18 @@ class BloombergRequestSender:
 
         Args:
             redis_host: Redis server host
-            redis_port: Redis server port
-            redis_db: Redis database number
-            sql_server_conn_str: SQL Server connection string
+            db_server: SQL server hostname
+            db_port: SQL server port
+            _database : database on server used
             catalog: Bloomberg Data License Account Number
             client_id: Bloomberg OAuth2 client ID
             client_secret: Bloomberg OAuth2 client secret
         """
 
+        logger.info("Request Sender Initialization")
         ## db connection
         self.db_connection = BloombergDatabase(
-            server="asldb03", port=db_port, database=_database
+            server=db_server, port=db_port, database=_database
         )
 
         self.bbg_connection = BloombergRestConnection(
@@ -68,13 +58,15 @@ class BloombergRequestSender:
         )
 
         # Redis connection
-        self.redis_connection = BloombergRedis()
-        # Redis keys
+        self.redis_connection = BloombergRedis(redis_host=redis_host)
 
+        logger.info("Init done")
 
-    def _handle_request_failure(self, request_data: Dict[str, Any], error_message: str):
+    def _handle_request_failure(
+        self, request_data: BloombergRequest, error_message: str
+    ):
         """Handle failed request with retry logic"""
-        request_id = request_data["request_id"]
+        request_id = request_data.request_id
         retry_count = request_data.get("retry_count", 0)
         max_retries = request_data.get("max_retries", 3)
 
@@ -87,50 +79,37 @@ class BloombergRequestSender:
 
             # Re-queue with delay
             time.sleep(2**retry_count)  # Exponential backoff
-            self.redis_connection.get_client().zadd(
-                REQUEST_QUEUE, {json.dumps(request_data): request_data["priority"]}
-            )
 
             logger.info(
                 f"Request {request_id} queued for retry {retry_count + 1}/{max_retries}"
             )
         else:
             # Mark as failed
-            self.db_connection.update_request_status(request_id, "failed")
-            self.db_connection.store_error_response(request_id, error_message)
+            self.db_connection.set_request_failed(request_id)
+            self.db_connection.store_send_error_response(request_id, error_message)
 
             logger.error(
                 f"Request {request_id} failed permanently after {max_retries} retries"
             )
 
+    
     ## *******************************************************************
 
-    def _process_single_request(self, request_data: Dict[str, Any]):
+    def _process_single_request(self, request_data: BloombergRequest):
         """Process a single Bloomberg Data License request"""
-        request_id = request_data["request_id"]
-        identifier = request_data["identifier"]
+        request_id = request_data.request_id
+        identifier = request_data.identifier
 
         try:
             # Update status in database
-            self.db_connection.update_request_status(request_id, "processing")
+            self.db_connection.set_request_status_processing(request_id, "processing")
 
             # Submit request to Bloomberg
-            response = self._submit_to_bloomberg(request_data)
+            response = self.bbg_connection.submit_to_bloomberg(request_data)
 
-            if response.status_code == 200:
+            if response.status_code == 200 or response.status_code == 201:
                 # Request submitted successfully
-                self.db_connection.update_request_status(request_id, "submitted")
-                self.db_connection.update_submitted_timestamp(request_id)
-
-                # Add to polling queue
-                polling_data = {
-                    "request_id": request_id,
-                    "identifier": identifier,
-                    "submitted_at": datetime.now().isoformat(),
-                }
-                self.redis_connection.get_client().lpush(
-                    POLLING_QUEUE, json.dumps(polling_data)
-                )
+                self.db_connection.set_request_submitted(request_id)
 
                 logger.info(f"Request {request_id} submitted successfully to Bloomberg")
             else:
@@ -145,19 +124,9 @@ class BloombergRequestSender:
 
     ## ***********************************************
 
-    def process_request(self, request_data):
-        # Move to processing set
-        self.redis_connection.get_client().sadd(
-            PROCESSING_SET, request_data["request_id"]
-        )
-
-        # Process the request
+    def process_request(self, request_data: BloombergRequest):
+        """Move to processing set not sure these are needed..."""
         self._process_single_request(request_data)
-
-        # Remove from processing set
-        self.redis_connection.get_client().srem(
-            PROCESSING_SET, request_data["request_id"]
-        )
 
     ## *****************************************************
 
@@ -168,7 +137,7 @@ class BloombergRequestSender:
         return (MAX_LOOPS <= 0) or (count < MAX_LOOPS)
 
     ## *****************************************************
-   
+
     def process_queued_requests(self):
         """Main processing loop for sending requests"""
         logger.info("Starting Bloomberg request processing loop...")
@@ -188,9 +157,8 @@ class BloombergRequestSender:
                     stop_processing = True
                     continue
 
-                
                 request_json, priority = requests_data[0]
-                request_data = json.loads(request_json)
+                request_data = orjson.loads(request_json)
                 self.redis_connection.remove_sender_request(request_json)
                 self.process_request(request_data)
 
@@ -229,7 +197,7 @@ class BloombergRequestSender:
             request_id: Unique identifier for the request
         """
         request_id = str(uuid.uuid4())
-        identifier = f"{request_name}{str(uuid.uuid4())[0:4]}"
+        identifier = f"{request_name}{str(uuid.uuid4())[0:6]}"
 
         # Build Bloomberg request payload
         request_payload = {
@@ -311,15 +279,16 @@ def submit_cusip_request(
     }
 
     return sender.submit_data_request(
-        request_name, title, universe, field_list, priority=priority, queue_it=True
+        request_name, title, universe, field_list, priority=priority, queue_it=False
     )
 
 
-def main():
+def setup_logging():
     ## setup logging --
-    FORMAT = "%(asctime)s:%(filename)s:%(lineno)d=> %(message)s"
+    ## add LOG_DIR var!
+    FORMAT = "%(asctime)s:%(levelname)s:%(filename)s:%(lineno)d=> %(message)s"
     handler = RotatingFileHandler(
-        "bbg_request_sender.log", maxBytes=5000000, backupCount=3
+        "logs/bbg_request_sender.log", maxBytes=5000000, backupCount=3
     )
     logging.basicConfig(
         handlers=[handler],
@@ -328,6 +297,11 @@ def main():
         level=logging.INFO,
     )
     handler.doRollover()  # start a new log each time.
+
+
+def main():
+    setup_logging()
+
     sender = BloombergRequestSender()
 
     # Example: Submit a CUSIP request
@@ -343,13 +317,13 @@ def main():
         sender,
         cusips=["91282CMV0"],
         fields=["SECURITY_DES"],
-        request_name="BondInfo",
-        title="Get Bond Information",
+        request_name="TsyBondStatic",
+        title="Get Tsy Bond Static",
         priority=1,
     )
 
-    request_id = sender.submit_command("exit")
-    sender.process_queued_requests()
+    # request_id = sender.submit_command("exit")
+    # sender.process_queued_requests()
     print(f"Submitted Bloomberg request: {request_id}")
 
 

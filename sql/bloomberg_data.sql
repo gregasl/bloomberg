@@ -12,10 +12,7 @@ CREATE TABLE bloomberg_data (
     request_id NVARCHAR(50) NOT NULL,
     identifier NVARCHAR(100) NOT NULL,
     data_type NVARCHAR(50) DEFAULT 'csv',
-    raw_data NTEXT,
-    parsed_data NTEXT,
-    snapshot_timestamp NVARCHAR(50),
-    record_count INT,
+    data_content NTEXT,
     created_at DATETIME2 DEFAULT GETDATE()
 )
 go

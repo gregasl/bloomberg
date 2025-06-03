@@ -1,6 +1,6 @@
 import os
 import uuid
-import json
+import orjson
 import datetime
 import time
 
@@ -78,7 +78,7 @@ print(f'{json_payload}')
 
 request_uri = urljoin(HOST, request_response_base) + '/requests/'
 print(f"request uri {request_uri}")
-data = json.loads(json_payload)
+data = orjson.loads(json_payload)
 
 response = SESSION.post(request_uri, json=data, headers={'api-version': '2'})
 
