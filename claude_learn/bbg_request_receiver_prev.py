@@ -5,13 +5,13 @@ import time
 import logging
 import os
 import secrets
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Callable
+from typing import Any, Callable
 from urllib.parse import urljoin
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
-from dataclasses import dataclass
 import uuid
+
+from response_handler import ResponseHandler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -67,7 +67,7 @@ class BloombergResponsePoller:
         self.ERROR_QUEUE = "bloomberg:error_queue"
         
         # Response handlers
-        self.response_handlers: List[ResponseHandler] = []
+        self.response_handlers: list[ResponseHandler] = []
         
         # Processing state
         self.is_running = False
@@ -144,8 +144,8 @@ class BloombergResponsePoller:
     
 
 
-    def register_handler(self, name: str, condition: Callable[[Dict[str, Any]], bool], 
-                        handler: Callable[[Dict[str, Any]], None]):
+    def register_handler(self, name: str, condition: Callable[[dict[str, Any]], bool], 
+                        handler: Callable[[dict[str, Any]], None]):
         """Register a response handler"""
         self.response_handlers.append(ResponseHandler(name, condition, handler))
         logger.info(f"Registered response handler: {name}")
@@ -215,7 +215,7 @@ class BloombergResponsePoller:
     
 
 
-    def _get_active_polling_requests(self) -> List[Dict[str, Any]]:
+    def _get_active_polling_requests(self) -> list[dict[str, Any]]:
         """Get all requests currently being polled"""
         try:
             with pyodbc.connect(self.sql_conn_str) as conn:
@@ -242,7 +242,7 @@ class BloombergResponsePoller:
     
 
 
-    def _poll_single_request(self, request: Dict[str, Any]):
+    def _poll_single_request(self, request: dict[str, Any]):
         """Poll a single request for responses"""
         request_id = request['request_id']
         identifier = request['identifier']
@@ -258,4 +258,6 @@ class BloombergResponsePoller:
             logger.debug(f"Polling Bloomberg: {content_responses_uri}")
             
             # Make the polling request
-            response = self.session.get(content_responses_uri, headers={'api-version': '2'
+            response = self.session.get(content_responses_uri, headers={'api-version': '2'})
+        except Exception as ex:
+            logger.error("FAILED")

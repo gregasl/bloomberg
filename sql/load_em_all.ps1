@@ -4,7 +4,7 @@ $sqlFiles = Get-ChildItem -Path .\*.sql
 foreach ($file in $sqlFiles) {
     try {
         Write-Output "Processing $file"
-        mssql-cli -E -S ASLDB03 -i $file -r0
+        mssql-cli -E -S ASLDB03 -i $file
 
 	if ($LASTEXITCODE -ne 0) {
 	  Write-Error "Cannot load $file"

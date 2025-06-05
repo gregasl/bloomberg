@@ -1,5 +1,5 @@
 from datetime import datetime
-import orjson
+import json
 import os
 import logging
 from typing import Any, Callable, Optional
@@ -90,10 +90,10 @@ class BloombergRestConnection:
         self._initialize_oauth_session()
         # for saving calls made...
         self.db_connection = _db_connection
-        self.bbg_host = "https://api.bloomberg.com"
+        self.bbg_host = DEFAULT_BBG_HOST
         self.request_response_base = f"/eap/catalogs/{self.catalog}"
 
-        self.response_handlers: List[ResponseHandler] = []
+        self.response_handlers: list[ResponseHandler] = []
 
     def _token_updater(self, token):
         """Handle token updates"""
@@ -107,14 +107,25 @@ class BloombergRestConnection:
     def submit_to_bloomberg(self, request_data: BloombergRequest) -> Any:
         """Submit request to Bloomberg Data License API"""
         request_uri = urljoin(self.bbg_host, self.request_response_base) + "/requests/"
-        payload = request_data.request_payload
+        payload = json.loads(request_data.request_payload)
 
         logger.info(f"Submitting to Bloomberg: {request_uri}")
-        logger.debug(f"Payload: {orjson.dumps(payload, indent=2)}")
 
-        response = self.session.post(
-            request_uri, json=payload, headers={"api-version": "2"}, timeout=30
-        )
+        if (logger.getEffectiveLevel() == logging.DEBUG):
+            try:
+               #  json_str = json.dumps(payload, indent=2)
+               logger.debug(f"Sending payload to bbg payload type {payload}")
+            except Exception as e:
+                logger.debug(f"Error logging bbg send payload {e}")
+                raise
+
+        try:
+            response = self.session.post(
+                request_uri, json=payload, headers={"api-version": "2"}, timeout=30
+            )
+        except Exception as e:
+            logger.error(f"Sending to bbg failed on session post {e}")
+            raise
 
         return response
 
@@ -166,11 +177,11 @@ class BloombergRestConnection:
                 return response.text
             else:
                 logger.error(
-                    f"Failed to download content from {url}: HTTP {response.status_code}"
+                    f"Failed to download content from {data_uri}: HTTP {response.status_code}"
                 )
                 return None
         except Exception as e:
-            logger.error(f"Error downloading content from {url}: {e}")
+            logger.error(f"Error downloading content from {data_uri}: {e}")
             return None
 
     def _process_bloomberg_response(
@@ -213,7 +224,6 @@ class BloombergRestConnection:
                 "timestamp": datetime.now().isoformat(),
             }
 
-    #            self.redis_client.lpush(self.ERROR_QUEUE, orjson.dumps(error_payload))
 
     def poll_single_request(self, request: BloombergRequest):
         """Poll a single request for responses"""
@@ -235,9 +245,6 @@ class BloombergRestConnection:
             response = self.session.get(
                 content_responses_uri, headers={"api-version": "2"}
             )
-
-            # Update poll count
-            #### self.db_connection.update_poll_count(request_id, poll_count + 1)
 
             if response.status_code == 200:
                 response_data = response.json()
@@ -272,14 +279,6 @@ class BloombergRestConnection:
                 logger.error(
                     f"HTTP error {response.status_code} for request {request_id}"
                 )
-                # if poll_count + 1 >= request["max_polls"]:
-                #     self._handle_polling_error(
-                #         request_id,
-                #         f"Max polls reached with HTTP {response.status_code}",
-                #         response.status_code,
-                #     )
 
         except Exception as e:
             logger.error(f"Error polling request {request_id}: {e}")
-            # if poll_count + 1 >= request["max_polls"]:
-            #     self._handle_polling_error(request_id, str(e), 500)

@@ -13,6 +13,7 @@ import sys
 # Changing working directory
 ####################################
 #
+BDAY = '//aslfile01/ASLCAP/Operations/TodayHoliday.txt'
 
 def wi() -> pd.DataFrame:
     today = datetime.datetime.today().date()
@@ -28,7 +29,7 @@ def wi() -> pd.DataFrame:
     return df
 
 
-def get_cusips(environment : str, email : str) -> pd.DataFrame:
+def get_phase3_cusips() -> list[str]:
     try:
         #connection = pyodbc.connect("DSN=ASLFIS", autocommit=True)
         FISconnct = 'DRIVER={SQL Server};SERVER=ASLFISSQL;DATABASE=ASLFIS;UID=aslrisk;PWD=1Welcome2!'
@@ -109,16 +110,16 @@ def get_cusips(environment : str, email : str) -> pd.DataFrame:
     df['REQUEST_TYPE'] = 'GOVT'
     df = df.reset_index(drop=True)
     df['CUSIP_NUMBER'] = df['CUSIP_NUMBER'].str.strip()
-    # df['CUSIP8'] = df['CUSIP_NUMBER'].apply(lambda x: x[:8])
-    # temp  = df['CUSIP_NUMBER'].apply(lambda x: (x[-1] == 'W') | (x[-1] == 'R'))
-    # df.loc[df[temp].index, 'temp'] = 0
-    # df.loc[df[~temp].index, 'temp'] = 1
-    # df = df.sort_values(by='temp', ascending=False)
-    # df = df.drop_duplicates('CUSIP8', keep='first')
+    df['CUSIP8'] = df['CUSIP_NUMBER'].apply(lambda x: x[:8])
+    temp  = df['CUSIP_NUMBER'].apply(lambda x: (x[-1] == 'W') | (x[-1] == 'R'))
+    df.loc[df[temp].index, 'temp'] = 0
+    df.loc[df[~temp].index, 'temp'] = 1
+    df = df.sort_values(by='temp', ascending=False)
+    df = df.drop_duplicates('CUSIP8', keep='first')
 
-    # df = df.sort_values(by='CUSIP8', ascending=True)
-    
-    return df
+    df = df.sort_values(by='CUSIP8', ascending=True)
+    ret_list : list[str] = df['CUSIP_NUMBER']
+    return ret_list
 
 ### left over from last one getting there.
 ### 
@@ -161,8 +162,8 @@ if __name__ == '__main__':
                             format='%(asctime)s %(levelname)s %(name)s %(message)s')
         logger = logging.getLogger(__name__)
         try:
-            write_req()
-            open(file_dir + 'write_treasury_price.txt', 'a').close()
+            cusips = get_phase3_cusips(environment="", email="greg.mahoney@aslcap.com")
+           #  open(file_dir + 'write_treasury_price.txt', 'a').close()
         except Exception as err:
             print(err)
             logger.error(str(err) + '  [write_req.py]')

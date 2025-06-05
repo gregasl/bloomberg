@@ -1,17 +1,16 @@
 import re
 import time
+import orjson
 from logging.handlers import RotatingFileHandler
 import logging
 from logging.handlers import RotatingFileHandler
 
 from datetime import datetime
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Callable
 
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
 from bbg_redis import BloombergRedis
-from bbg_request import BloombergRequest
-from response_handler import ResponseHandler
 
 # Attach logging
 logger = logging.getLogger(__name__)
@@ -70,7 +69,7 @@ class BloombergResponsePoller:
 
         self._register_default_handlers()
 
-    def _get_response_content_type(self, response_payload : Dict[str, Any]) -> str:
+    def _get_response_content_type(self, response_payload : dict[str, Any]) -> str:
         """
         Extracts the 'Content-Type' header from the given response payload.
 
@@ -134,8 +133,8 @@ class BloombergResponsePoller:
     def register_handler(
         self,
         name: str,
-        condition: Callable[[Dict[str, Any]], bool],
-        handler: Callable[[Dict[str, Any]], None],
+        condition: Callable[[dict[str, Any]], bool],
+        handler: Callable[[dict[str, Any]], None],
     ):
         self.bbg_connection.register_handler(name=name, condition=condition, handler=handler)
 
@@ -176,7 +175,7 @@ class BloombergResponsePoller:
             logger.error(f"Error polling existing requests: {e}")
          
     
-    def _handle_csv_response(self, response_payload: Dict[str, Any]):
+    def _handle_csv_response(self, response_payload: dict[str, Any]):
         """Handle CSV data responses"""
         try:
             key : str = response_payload["key"]
@@ -191,7 +190,7 @@ class BloombergResponsePoller:
         except Exception as e:
             logger.error(f"Error handling CSV response: {e}")
 
-    def _handle_json_response(self, response: Dict[str, Any]):
+    def _handle_json_response(self, response: dict[str, Any]):
         """Handle JSON data responses"""
         try:
             json_data = response.get("response_data", {})
@@ -205,7 +204,7 @@ class BloombergResponsePoller:
         except Exception as e:
             logger.error(f"Error handling JSON response: {e}")
 
-    def _handle_error_response(self, response: Dict[str, Any]):
+    def _handle_error_response(self, response: dict[str, Any]):
         """Handle error responses"""
         try:
             request_id = response.get("request_id")
@@ -224,7 +223,7 @@ class BloombergResponsePoller:
         except Exception as e:
             logger.error(f"Error handling error response: {e}")
 
-    def _handle_default_response(self, response: Dict[str, Any]):
+    def _handle_default_response(self, response: dict[str, Any]):
         """Handle all other responses"""
         try:
             request_id = response.get("request_id")
@@ -255,7 +254,7 @@ class BloombergResponsePoller:
             }
 
             # Add to error queue
-            self.redis_client.lpush(self.ERROR_QUEUE, json.dumps(error_payload))
+            self.redis_client.lpush(self.ERROR_QUEUE, orjson.dumps(error_payload))
 
             logger.error(f"Polling error for request {request_id}: {error_message}")
 
@@ -284,8 +283,8 @@ def main():
         poller = BloombergResponsePoller()
 
         # Register custom handler if needed
-        def custom_handler(response):
-            logger.info(f"Custom handler received: {response.get('request_id')}")
+        # def custom_handler(response):
+        #     logger.info(f"Custom handler received: {response.get('request_id')}")
 
        # poller.register_handler(
        #     "custom_handler", lambda r: r.get("data_type") == "csv", custom_handler

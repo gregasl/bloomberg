@@ -28,7 +28,7 @@ def wi():
     df['CUSIP'] = df['CUSIP'].str.strip()
     return df['CUSIP'].to_list()
 
-def write_req():
+def write_req(prev_cusips : list):
     try:
         #connection = pyodbc.connect("DSN=ASLFIS", autocommit=True)
         FISconnct = 'DRIVER={SQL Server};SERVER=ASLFISSQL;DATABASE=ASLFIS;UID=aslrisk;PWD=1Welcome2!'

@@ -1,10 +1,9 @@
-import orjson
-import json
+import json  # for storing in db
 import os
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 import uuid
-from asql import SQLObject
+from ASL import SQLObject
 from bbg_request import BloombergRequest
 
 
@@ -47,23 +46,24 @@ class BloombergDatabase:
         )
 
     def save_bbg_request(
-        self, request: BloombergRequest, request_name: str, title: str, status : str 
+        self, request: BloombergRequest, request_name: str, title: str, status : str ='pending'
     ):
         """Store request in SQL Server database"""
         try:
             query: str = """
                     INSERT INTO bloomberg_requests 
-                    (request_id, identifier, request_name, request_title, request_payload, priority, max_retries, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+                    (request_id, identifier, request_name, request_title, request_payload, priority, max_request_retries, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """
             params = (
                 request.request_id,
                 request.identifier,
                 request_name,
                 title,
-                orjson.dumps(request.request_payload),
+                json.dumps(request.request_payload),
                 request.priority,
                 request.max_retries,
+                status,
             )
             logger.info(query)
             self.db_connection.execute_param_query(
@@ -89,8 +89,8 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error updating request status: {e}")
 
-    def set_request_failed(self, request_id):
-        self.update_request_status(request_id: str, 'failed'):
+    def set_request_failed(self, request_id : str):
+        self.update_request_status(request_id, 'failed')
 
 
     def update_submitted_timestamp(self, request_id: str):
@@ -111,6 +111,9 @@ class BloombergDatabase:
     def set_request_submitted(self, request_id):
         self.update_request_status(request_id, 'submitted')
         self.update_submitted_timestamp(request_id)
+
+    def set_request_processing(self, request_id):
+        self.update_request_status(request_id, 'processing')
     
     def store_send_error_response(self, request_id: str, error_message: str):
         """
@@ -137,7 +140,7 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error storing error response: {e}")
 
-    def get_request_status(self, request_id: str) -> Optional[Dict[str, Any]]:
+    def get_request_status(self, request_id: str) -> Optional[dict[str, Any]]:
         """Retrieve the status and related information for a specific Bloomberg request.
         Args:
             request_id (str): The unique identifier of the request to retrieve.
@@ -166,10 +169,10 @@ class BloombergDatabase:
             logger.error(f"Error getting request status: {e}")
             return None
 
-    def get_active_polling_requests(self) -> List[Dict[str, Any]]:
+    def get_active_polling_requests(self) -> list[dict[str, Any]]:
         """Retrieve all active polling requests from the 'bloomberg_requests' table.
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries, each representing a request that is currently being polled
+            list[dict[str, Any]]: A list of dictionaries, each representing a request that is currently being polled
             (i.e., has status 'polling' and poll_count less than max_polls). Returns an empty list if an error occurs.
         """
         try:
@@ -185,10 +188,10 @@ class BloombergDatabase:
             logger.error(f"Error getting active polling requests: {e}")
             return []
 
-    def get_sumbitted_requests(self) -> List[Dict[str, Any]]:
+    def get_sumbitted_requests(self) -> list[dict[str, Any]]:
         """Retrieves all requests from the 'bloomberg_requests' table that have a status of 'submitted'.
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries, each containing the 'request_id' and 'identifier'
+            list[dict[str, Any]]: A list of dictionaries, each containing the 'request_id' and 'identifier'
             of a submitted request. Returns an empty list if an error occurs during the database query."""
         try:
             query: str = """
@@ -227,7 +230,7 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error storing CSV data: {e}")
 
-    def store_json_data(self, request_id: str, json_data: Dict[str, Any]):
+    def store_json_data(self, request_id: str, json_data: dict[str, Any]):
         """Store JSON data in database"""
         try:
             query: str = """
@@ -236,7 +239,7 @@ class BloombergDatabase:
                 """
             params: tuple = (
                 request_id,
-                orjson.dumps(json_data),
+                json.dumps(json_data),
             )
             logger.info(query + " " + request_id)
             self.db_connection.execute_param_query(
@@ -254,7 +257,7 @@ class BloombergDatabase:
             """
             params: tuple = (
                 request_id,
-                orjson.dumps(response_data, default=str) if response_data.len() > 0 else "",
+                json.dumps(response_data) if response_data.len() > 0 else "",
             )
 
             logger.info(query + " " + request_id)
