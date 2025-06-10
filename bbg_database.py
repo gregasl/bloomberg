@@ -16,7 +16,7 @@ class BloombergDatabase:
         self,
         server: str = None,
         port: str = None,
-        database: str = None,
+        database: str = 'XXXXX',
         username: str = None,
     ):
         """
