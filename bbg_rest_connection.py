@@ -238,7 +238,7 @@ class BloombergRestConnection:
                 f"/eap/catalogs/{self.catalog}/content/responses/?requestIdentifier={identifier}",
             )
 
-            logger.debug(f"Polling Bloomberg: {content_responses_uri}")
+            logger.info(f"Polling Bloomberg: {content_responses_uri}")
 
             # Make the polling request
             response = self.session.get(
@@ -247,9 +247,10 @@ class BloombergRestConnection:
 
             if response.status_code == 200:
                 response_data = response.json()
-                logging.info(response_data)
+                if (logger.getEffectiveLevel() == logging.DEBUG): logging.debug(response_data) 
                 responses = response_data["contains"]
-                logging.info(responses)
+                if (logger.getEffectiveLevel() == logging.DEBUG):  logging.debug(responses)
+
                 if len(responses) > 0:
                     logger.info(f"Response received for request {request_id}")
                     self._process_bloomberg_response(request_id, identifier, responses)
