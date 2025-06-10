@@ -22,3 +22,7 @@ class BloombergRequest:
     priority: int = 4 
     retry_count: int = 0
     max_retries: int = 3
+
+    def print_the_dict(self, log_func):
+        for key, value in self.__dict__.items():
+            log_func(f'k={key} v={value}')

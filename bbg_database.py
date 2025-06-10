@@ -206,20 +206,23 @@ class BloombergDatabase:
             logger.error(f"Error getting active polling requests: {e}")
             return []
 
-    def store_csv_data(self, request_id: str, csv_data: str):
-        """Stores CSV data associated with a given request ID into the 'bloomberg_response_data' database table.
+    def store_csv_data(self, request_id: str, identifier: str, csv_data: str):
+        """Stores CSV data into the 'bloomberg_data' table in the database.
         Args:
-            request_id (str): The unique identifier for the request.
+            request_id (str): The unique identifier for the data request.
+            identifier (str): The identifier associated with the data (e.g., a ticker symbol).
             csv_data (str): The CSV-formatted data to be stored.
         Raises:
-            Exception: Logs any exception that occurs during the database operation."""
+            Exception: Logs and raises any exception that occurs during the database operation."""
+
         try:
             query: str = """
-                    INSERT INTO bloomberg_data (request_id, data_type, data_content, created_at)
-                    VALUES (?, 'csv', ?, GETDATE())
+                    INSERT INTO bloomberg_data (request_id, identifier, data_type, data_content, created_at)
+                    VALUES (?, ?, 'csv', ?, GETDATE())
                 """
             params: tuple = (
                 request_id,
+                identifier,
                 csv_data,
             )
             logger.info(query + " " + request_id)
@@ -230,15 +233,16 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error storing CSV data: {e}")
 
-    def store_json_data(self, request_id: str, json_data: dict[str, Any]):
+    def store_json_data(self, request_id: str, identifier: str, json_data: dict[str, Any]):
         """Store JSON data in database"""
         try:
             query: str = """
                     INSERT INTO bloomberg_data (request_id, data_type, data_content, created_at)
-                    VALUES (?, 'json', ?, GETDATE())
+                    VALUES (?, ?,'json', ?, GETDATE())
                 """
             params: tuple = (
                 request_id,
+                identifier,
                 json.dumps(json_data),
             )
             logger.info(query + " " + request_id)
@@ -248,15 +252,17 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error storing JSON data: {e}")
 
-    def store_raw_response(self, request_id: str, response_data: Any):
+    def store_raw_response(self, request_id: str, identifier: str, response_data: Any):
         """Store raw response data in database"""
         try:
             query: str = """
                 INSERT INTO bloomberg_data (request_id, data_type, data_content, created_at)
                 VALUES (?, 'raw', ?, GETDATE())
             """
+            # not sure about json dumps raw?
             params: tuple = (
                 request_id,
+                identifier,
                 json.dumps(response_data) if response_data.len() > 0 else "",
             )
 
