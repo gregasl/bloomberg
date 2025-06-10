@@ -2,7 +2,7 @@ from datetime import datetime
 import orjson
 import logging
 from typing import Any, Optional
-from asl_redis import ASLRedis
+from ASL.utils.asl_redis import ASLRedis
 from bbg_request import BloombergRequest
 
 logger = logging.getLogger(__name__)
