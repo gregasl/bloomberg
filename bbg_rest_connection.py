@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_BBG_HOST = "https://api.bloomberg.com"
 DEFAULT_OAUTH2_ENDPOINT = "https://bsso.blpprofessional.com/ext/api/as/token.oauth2"
 
+def get_obj_dict(obj):
+    return obj.__dict__
 
 class BloombergRestConnection:
     def _initialize_oauth_session(self):
@@ -104,25 +106,22 @@ class BloombergRestConnection:
     def set_db_connection(self, _db_connection: BloombergDatabase):
         self.db_connection = _db_connection
 
-    def submit_to_bloomberg(self, request_data: BloombergRequest) -> Any:
+    def submit_to_bloomberg(self, request_data: dict[str, Any]) -> Any:
         """Submit request to Bloomberg Data License API"""
         request_uri = urljoin(self.bbg_host, self.request_response_base) + "/requests/"
-        payload = json.loads(request_data.request_payload)
-
         logger.info(f"Submitting to Bloomberg: {request_uri}")
 
         if (logger.getEffectiveLevel() == logging.DEBUG):
             try:
                #  json_str = json.dumps(payload, indent=2)
-               logger.debug(f"Sending payload to bbg payload type {payload}")
+               logger.debug(f"Sending payload to bbg request_payload type {request_data['request_payload']}")
             except Exception as e:
                 logger.debug(f"Error logging bbg send payload {e}")
                 raise
 
         try:
             response = self.session.post(
-                request_uri, json=payload, headers={"api-version": "2"}, timeout=30
-            )
+                url=request_uri, json=request_data['request_payload'], headers={'api-version': '2'})
         except Exception as e:
             logger.error(f"Sending to bbg failed on session post {e}")
             raise

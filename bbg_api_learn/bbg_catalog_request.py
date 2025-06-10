@@ -77,9 +77,12 @@ print("About to make request")
 print(f'{json_payload}')
 
 request_uri = urljoin(HOST, request_response_base) + '/requests/'
-print(f"request uri {request_uri}")
 data = orjson.loads(json_payload)
 
+with open("url_post_file.txt", 'a') as f:
+    print(f"request uri {request_uri}")
+    print(f"data {data}")
+    
 response = SESSION.post(request_uri, json=data, headers={'api-version': '2'})
 
 print(f"Status Code: {response.status_code}")
@@ -103,6 +106,7 @@ while True:
             key = latest_response["key"]
             snapshot_timestamp = latest_response["metadata"]["DL_SNAPSHOT_START_TIME"]
             data_uri = urljoin(HOST, f'/eap/catalogs/{catalog}/content/responses/{key}')
+           
             data_response = SESSION.get(data_uri, headers={'api-version': '2'})
     
             print(f"Latest response found on {data_uri} for snapshot {snapshot_timestamp}. Printing body")

@@ -14,7 +14,7 @@ CREATE TABLE bloomberg_requests (
     request_name NVARCHAR(200),
     request_title NVARCHAR(500),
     request_payload NTEXT NOT NULL,
-    status NVARCHAR(20) DEFAULT 'pending' NOT NULL  CONSTRAINT status_check CHECK (archived_typ in ('pending', 'U', 'D')),,
+    status NVARCHAR(20) DEFAULT 'pending' NOT NULL  CONSTRAINT status_check CHECK (archived_typ in ('pending', 'processing', 'submitted', 'complete')),
     priority INT DEFAULT 1 NOT NULL,
     request_retry_count INT DEFAULT 0 NOT NULL,
     max_request_retries INT DEFAULT 3 NOT NULL,

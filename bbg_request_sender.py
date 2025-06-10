@@ -3,8 +3,6 @@ import orjson
 import time
 import uuid
 import logging
-from types import SimpleNamespace
-from logging.handlers import RotatingFileHandler
 from ASL import ASL_Logging
 
 from typing import Any
@@ -102,10 +100,10 @@ class BloombergRequestSender:
 
     ## *******************************************************************
 
-    def _process_single_request(self, request_data: BloombergRequest):
+    def _process_single_request(self, request_data: dict[str, Any]):
         try:
-            request_id = request_data.request_id
-            identifier = request_data.identifier
+            request_id = request_data['request_id']
+            identifier = request_data['identifier']
         except Exception as e:
             logger.error(f"Error processing request: {e}")
 
@@ -125,6 +123,7 @@ class BloombergRequestSender:
                 # Handle submission failure
                 error_msg = f"Bloomberg submission failed: {response.status_code} - {response.text}"
                 logger.error(f"Request {request_id}: {error_msg}")
+                logger.debug(response)
                 self._handle_request_failure(request_data, error_msg)
 
         except Exception as e:
@@ -164,13 +163,15 @@ class BloombergRequestSender:
                     continue
 
                 request_json, priority = requests_data[0]
-                request_data = json.loads(
-                    request_json, object_hook=lambda d: SimpleNamespace(**d)
+                request_data2 : BloombergRequest = json.loads(
+                    request_json
                 )
+                #conv_json = request_data2['request_payload']
+                #request_data2['request_payload']  = json.loads(conv_json)
                 logger.debug(request_json)
-                logger.debug(request_data)
-                logger.debug(request_data.request_payload)
-                self._process_single_request(request_data)
+                logger.debug(request_data2)
+                
+                self._process_single_request(request_data2)
                 self.redis_connection.remove_sender_request(request_json)
             except Exception as e:
                 logger.error(f"Error in request processing loop: {e}")
@@ -297,21 +298,6 @@ def submit_cusip_request(
 
 def setup_logging():
     asl_logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs")
-  #  handler = RotatingFileHandler("logs/bbg_request_sender.log", maxBytes=5000000, backupCount=3)
-  #  handler.doRollover() 
-    ## setup logging --
-    ## add LOG_DIR var!
-    # FORMAT = "%(asctime)s:%(levelname)s:%(filename)s:%(lineno)d=> %(message)s"
-    # handler = RotatingFileHandler(
-    #     "logs/bbg_request_sender.log", maxBytes=5000000, backupCount=3
-    # )
-    # logging.basicConfig(
-    #     handlers=[handler],
-    #     format=FORMAT,
-    #     datefmt="%Y-%m-%d %H:%M:%S",
-    #     level=logging.INFO,
-    # )
-    # handler.doRollover()  # start a new log each time.
 
 
 def main():
@@ -328,8 +314,8 @@ def main():
     #     priority=1
     # )
     if (testing):
-        cusip_list: list[str] = get_phase3_cusips()
-        cusip_list = cusip_list[:1]  # lets only play with 1 now
+        cusip_list: list[str] = ["91282CMV0"] # get_phase3_cusips()
+        # cusip_list = cusip_list[:1]  # lets only play with 1 now
 
         request_id = submit_cusip_request(
             sender,

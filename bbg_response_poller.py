@@ -1,10 +1,9 @@
 import re
 import time
 import orjson
-from logging.handlers import RotatingFileHandler
 import logging
 from logging.handlers import RotatingFileHandler
-
+from ASL import ASL_Logging
 from datetime import datetime
 from typing import Any, Callable
 
@@ -180,10 +179,11 @@ class BloombergResponsePoller:
         try:
             key : str = response_payload["key"]
             request_id : str = response_payload["request_id"]
+            identifier : str = response_payload["identifier"]
             csv_data = self.bbg_connection.download_response_content(key)
 
             # Store CSV data in database
-            self.db_connection.store_csv_data(request_id=request_id, csv_data=csv_data)
+            self.db_connection.store_csv_data(request_id=request_id, identifier=identifier, csv_data=csv_data)
 
             logger.info(f"CSV response processed for request {request_id}")
 
@@ -194,10 +194,11 @@ class BloombergResponsePoller:
         """Handle JSON data responses"""
         try:
             json_data = response.get("response_data", {})
+            identifier = response.get("identifier")
             request_id = response.get("request_id")
 
             # Store JSON data in database
-            self.db_connection.store_json_data(request_id, json_data)
+            self.db_connection.store_json_data(request_id, identifier, json_data)
 
             logger.info(f"JSON response processed for request {request_id}")
 
@@ -264,31 +265,13 @@ class BloombergResponsePoller:
 
 def setup_logging():
  ## setup logging --
-        FORMAT = "%(asctime)s:%(levelname)s:%(filename)s:%(lineno)d=> %(message)s"
-        handler = RotatingFileHandler(
-            "logs/bbg_request_receiver.log", maxBytes=5000000, backupCount=3
-        )
-        logging.basicConfig(
-            handlers=[handler],
-            format=FORMAT,
-            datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.DEBUG,
-        )
-        handler.doRollover()  # start a new log each time.
+    asl_logger = ASL_Logging(log_file="bbg_request_receiver.log", log_path="./logs")
 
 def main():
     try:
         setup_logging()
         # Initialize poller
         poller = BloombergResponsePoller()
-
-        # Register custom handler if needed
-        # def custom_handler(response):
-        #     logger.info(f"Custom handler received: {response.get('request_id')}")
-
-       # poller.register_handler(
-       #     "custom_handler", lambda r: r.get("data_type") == "csv", custom_handler
-       # )
 
         # Start polling
         poller.start_polling()

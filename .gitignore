@@ -43,6 +43,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.log
+logs/
 *.rpt
 *.json
 .swp
