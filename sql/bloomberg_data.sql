@@ -8,15 +8,14 @@ END
 GO
 
 CREATE TABLE bloomberg_data (
-    id BIGINT IDENTITY(1,1) PRIMARY KEY,
-    request_id NVARCHAR(50) NOT NULL,
+    request_id NVARCHAR(50) NOT NULL PRIMARY KEY,
     identifier NVARCHAR(100) NOT NULL,
     data_type NVARCHAR(50) DEFAULT 'csv',
     data_content NTEXT,
-    created_at DATETIME2 DEFAULT GETDATE()
+    ts DATETIME2 DEFAULT GETDATE()
 )
 go
 
 /* do we need an index on identifier */
-CREATE NONCLUSTERED INDEX request_id_indx on dbo.bloomberg_data(request_id)
+CREATE NONCLUSTERED INDEX bbg_data_identifier_indx on dbo.bloomberg_data(identifier, ts)
 go

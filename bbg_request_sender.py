@@ -163,15 +163,11 @@ class BloombergRequestSender:
                     continue
 
                 request_json, priority = requests_data[0]
-                request_data2 : BloombergRequest = json.loads(
+                request_data : dict[str, Any] = json.loads(
                     request_json
                 )
-                #conv_json = request_data2['request_payload']
-                #request_data2['request_payload']  = json.loads(conv_json)
-                logger.debug(request_json)
-                logger.debug(request_data2)
                 
-                self._process_single_request(request_data2)
+                self._process_single_request(request_data)
                 self.redis_connection.remove_sender_request(request_json)
             except Exception as e:
                 logger.error(f"Error in request processing loop: {e}")
@@ -314,15 +310,15 @@ def main():
     #     priority=1
     # )
     if (testing):
-        cusip_list: list[str] = ["91282CMV0"] # get_phase3_cusips()
-        # cusip_list = cusip_list[:1]  # lets only play with 1 now
+        cusip_list: list[str] = get_phase3_cusips()
+        cusip_list = cusip_list[:1]  # lets only play with 1 now
 
         request_id = submit_cusip_request(
             sender,
             cusips=cusip_list,
             fields=["SECURITY_DES"],
-            request_name="TsyBondStatic",
-            title="Get Tsy Bond Static",
+            request_name="TsyBondInfo",
+            title="Get Tsy Bond Info",
             priority=DEFAULT_REQUEST_PRIORITY,
         )
 

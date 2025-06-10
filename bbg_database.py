@@ -52,17 +52,16 @@ class BloombergDatabase:
         try:
             query: str = """
                     INSERT INTO bloomberg_requests 
-                    (request_id, identifier, request_name, request_title, request_payload, priority, max_request_retries, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (request_id, identifier, name, title, payload, priority, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 """
-            params = (
+            params : tuple = (
                 request.request_id,
                 request.identifier,
                 request_name,
                 title,
                 json.dumps(request.request_payload),
                 request.priority,
-                request.max_retries,
                 status,
             )
             logger.info(query)
@@ -155,7 +154,7 @@ class BloombergDatabase:
         """
         try:
             query: str = f"""
-                    SELECT r.request_id, r.identifier, r.request_name, r.request_title, r.status, r.priority,
+                    SELECT r.request_id, r.identifier, r.name, r.title, r.status, r.priority,
                     r.request_retry_count, r.max_request_retries, r.submitted_at, r.response_poll_count, 
                     r.max_response_polls, r.last_poll_at, r.created_at, r.updated_at
                     FROM bloomberg_requests r
@@ -217,7 +216,7 @@ class BloombergDatabase:
 
         try:
             query: str = """
-                    INSERT INTO bloomberg_data (request_id, identifier, data_type, data_content, created_at)
+                    INSERT INTO bloomberg_data (request_id, identifier, data_type, data_content, ts)
                     VALUES (?, ?, 'csv', ?, GETDATE())
                 """
             params: tuple = (
