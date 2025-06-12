@@ -29,7 +29,7 @@ def wi() -> pd.DataFrame:
     return df
 
 
-def get_phase3_cusips() -> list[str]:
+def get_phase3_tsy_cusips() -> list[str]:
     try:
         #connection = pyodbc.connect("DSN=ASLFIS", autocommit=True)
         FISconnct = 'DRIVER={SQL Server};SERVER=ASLFISSQL;DATABASE=ASLFIS;UID=aslrisk;PWD=1Welcome2!'
@@ -162,7 +162,7 @@ if __name__ == '__main__':
                             format='%(asctime)s %(levelname)s %(name)s %(message)s')
         logger = logging.getLogger(__name__)
         try:
-            cusips = get_phase3_cusips(environment="", email="greg.mahoney@aslcap.com")
+            cusips = get_phase3_tsy_cusips(environment="", email="greg.mahoney@aslcap.com")
            #  open(file_dir + 'write_treasury_price.txt', 'a').close()
         except Exception as err:
             print(err)

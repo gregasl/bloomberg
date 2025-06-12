@@ -8,17 +8,16 @@ END
 GO
 
 CREATE TABLE bloomberg_data_def (
-    request_name NVARCHAR(12) NOT NULL PRIMARY KEY,
+    request_name NVARCHAR(24) NOT NULL,
+    is_variable_data TINYINT not null DEFAULT 1,
+    suppress_sending TINYINT not null DEFAULT 0,  /* for testing send only problematic ones -- */
+                                                 /* or turn off if no longer needed */
     request_col_name NVARCHAR(128) NOT NULL, /* many times these 2 will be the same */
     reply_col_name NVARCHAR(128) NOT NULL,
-    data_type NVARCHAR(12) NOT NULL DEFAULT 'CSV', /* lets use this later */
+    data_type NVARCHAR(12) NOT NULL DEFAULT 'TEXT', /* lets use this later */
     output_col_name NVARCHAR(128) NULL,
-    output_file_name NVARCHAR(128) NULL,
-    db_col_Name NVARCHAR(128) NOT NULL,
+    db_col_name NVARCHAR(128) NOT NULL,
     ts DATETIME2 NOT NULL DEFAULT (GETDATE())
+    PRIMARY KEY(request_col_name, request_name)
 )
-go
-
-/* not sure we need any indexes unless table gets huge. */
-CREATE NONCLUSTERED INDEX col_request_index on dbo.bloomberg_data_def(request_col_name, request_name)
 go

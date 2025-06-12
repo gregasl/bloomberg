@@ -12,12 +12,19 @@ from bbg_database import BloombergDatabase
 from bbg_redis import BloombergRedis, POLLING_QUEUE, REQUEST_QUEUE
 from bbg_request import BloombergRequest, DEFAULT_CMD_PRIORITY, DEFAULT_REQUEST_PRIORITY
 from bbg_request import LAST_CMD_PRIORITY, REQUEST_TYPE_CMD, REQUEST_TYPE_BBG_REQUEST
-from bbg_sender_cmds import EXIT_CMD, CLR_QUEUES
-from get_cusip_list import get_phase3_cusips
+from bloomberg_data_def import BloombergDataDef
+from bbg_send_cmds import (
+    EXIT_CMD,
+    CLR_QUEUES,
+    REQUEST_TSY_CUSIPS,
+    REQUEST_FUT_CUSIPS,
+    REQUEST_MBS_CUSIPS,
+)
+from get_cusip_list import get_phase3_tsy_cusips
 
-MAX_LOOPS = 5
-MIN_WAIT_TIME=2
-MAX_WAIT_TIME=20
+MAX_LOOPS = -1  # wait for exit...
+MIN_WAIT_TIME = 2
+MAX_WAIT_TIME = 20
 ### NOTE THE STARTUP PARAMETERS NEED WORK - DB default user et. al.
 ## Just trying to get it running and tested
 
@@ -84,7 +91,7 @@ class BloombergRequestSender:
             )  # Lower priority for retries
 
             # Re-queue with delay
-            time.sleep(2*retry_count)
+            time.sleep(2 * retry_count)
 
             logger.info(
                 f"Request {request_id} queued for retry {retry_count + 1}/{max_retries}"
@@ -100,16 +107,17 @@ class BloombergRequestSender:
 
     ## *******************************************************************
 
-    def _process_single_request(self, request_data: dict[str, Any]):
+    def _process_single_request(self, request_data: BloombergRequest):
         try:
-            request_id = request_data['request_id']
-            identifier = request_data['identifier']
+            request_id = request_data.request_id
+            identifier = request_data.identifier
         except Exception as e:
             logger.error(f"Error processing request: {e}")
 
         try:
             # Update status in database
-            self.db_connection.set_request_processing(request_id)
+            self.db_connection.save_bbg_request(request_data, request_name=request_data.request_payload['name'],
+                                                 title=request_data.request_payload['title'], status='processing')
 
             # Submit request to Bloomberg
             response = self.bbg_connection.submit_to_bloomberg(request_data)
@@ -152,32 +160,65 @@ class BloombergRequestSender:
                 # Get highest priority request
                 count += 1
                 requests_data = self.redis_connection.get_sender_request()
+                if (logger.getEffectiveLevel() <= logging.DEBUG):
+                    logger.debug("Looping...")
+                    if (not requests_data):
+                        logger.debug("Got NOTHING")
+                    else:
+                        logger.debug(f"got {requests_data}")
 
                 if not requests_data:
                     time.sleep(sleep_time)
                     sleep_time = sleep_time * 2
-                    sleep_time = MAX_WAIT_TIME if (sleep_time > MAX_WAIT_TIME) else sleep_time
-                    continue
-                elif requests_data == EXIT_CMD:
-                    stop_processing = True
+                    sleep_time = (
+                        MAX_WAIT_TIME if (sleep_time > MAX_WAIT_TIME) else sleep_time
+                    )
                     continue
 
-                request_json, priority = requests_data[0]
-                request_data : dict[str, Any] = json.loads(
-                    request_json
-                )
-                
-                self._process_single_request(request_data)
-                self.redis_connection.remove_sender_request(request_json)
+                for request_data in requests_data:
+                    logger.debug(f"request from q {request_data}")
+                    request_dict: dict[str, Any] = json.loads(request_data[0])
+                    priority = request_data[1]
+                    cmd : str = request_dict['request_id']
+
+                    if cmd == EXIT_CMD:
+                        stop_processing = True
+                    else:  # process data commands
+                        bbg_request : BloombergRequest = None
+
+                        if cmd == REQUEST_TSY_CUSIPS:
+                            bbg_request  = self.create_tsy_cusip_request()
+                        elif cmd == REQUEST_FUT_CUSIPS:
+                             bbg_request = None  # self.submit_fut_cusip_request()
+                        elif cmd == REQUEST_MBS_CUSIPS:
+                            bbg_request = None  # self.submit_mbs_cusip_request()
+                        else: # otherwise we try to use the json here to do something
+                            # this is now wokinh
+                            request_json, priority = request_data
+                            if (request_json):
+                                request_dict: dict[str, Any] = json.loads(request_json)
+
+                        if (bbg_request):
+                            request_json = bbg_request.toJSON()
+                            self._process_single_request(bbg_request)
+                            self.redis_connection.remove_sender_request(request_json)
+                        elif request_json:
+                            bbg_request = BloombergRequest.create_from_json(request_json)
+                            self._process_single_request(bbg_request)
+                            self.redis_connection.remove_sender_request(request_json)
+                        else:
+                            logger.info(f"On command {requests_data} no json was generated")
+                            time.sleep(sleep_time)  # IDK about these sleeps
+
             except Exception as e:
                 logger.error(f"Error in request processing loop: {e}")
-                time.sleep(5)
+                time.sleep(sleep_time)
 
     ## puts a data request on a redis queue to be processed.
     ## I thin it is too convoluted.  the queue is probably not needed .
     ## lets get it to work then strip our.  Claude was confused as to what I meant.
 
-    def submit_data_request(
+    def create_data_request(
         self,
         request_name: str,
         title: str,
@@ -186,8 +227,7 @@ class BloombergRequestSender:
         output_format: str = "text/csv",
         priority: int = DEFAULT_REQUEST_PRIORITY,
         max_retries: int = 3,
-        queue_it: bool = False,
-    ) -> str:
+    ) -> BloombergRequest:
         """
         Submit a Bloomberg Data License request
 
@@ -229,67 +269,83 @@ class BloombergRequestSender:
         )
 
         # Store in database
-        self.db_connection.save_bbg_request(bloomberg_request, request_name, title)
+        # self.db_connection.save_bbg_request(bloomberg_request, request_name, title)
 
         # Add to Redis queue
-        if queue_it:
-            self.redis_connection.queue_request_to_sender(bloomberg_request)
-        else:
-            self.process_request(bloomberg_request)
+        # self.redis_connection.queue_request_to_sender(bloomberg_request)
 
         logger.info(
             f"Bloomberg request {request_id} submitted with identifier: {identifier}"
         )
-        return request_id
+
+        return bloomberg_request
 
     ## ************************************************
 
     def submit_command(self, cmd: str, priority=DEFAULT_CMD_PRIORITY):
         bloomberg_request = BloombergRequest(
-            request_id=cmd, identifier="", request_payload="", request_type=REQUEST_TYPE_CMD, priority=priority, max_retries=1
+            request_id=cmd,
+            identifier="",
+            request_payload="",
+            request_type=REQUEST_TYPE_CMD,
+            priority=priority,
+            max_retries=1,
         )
         self.redis_connection.queue_request_to_sender(bloomberg_request)
+        return bloomberg_request.request_id
 
 
-def submit_cusip_request(
-    sender,
-    cusips: list,
-    fields: list,
-    request_name: str = "CusipInfo",
-    title: str = "CUSIP Data Request",
-    priority: int = DEFAULT_REQUEST_PRIORITY,
-) -> str:
-    """
-    Convenience method to submit CUSIP-based requests
+    def create_tsy_cusip_request(
+        sender,
+        cusips: list = None,
+        fields: list = None,
+        request_name: str = "TsyBondInfo",
+        title: str = "Tsy Bond Info Request",
+        priority: int = DEFAULT_REQUEST_PRIORITY,
+    ) -> BloombergRequest:
+        """
+        Convenience method to submit CUSIP-based requests
 
-    Args:
-        cusips: list of CUSIP identifiers
-        fields: list of field mnemonics
-        request_name: Name for the request
-        title: Title for the request
-        priority: Request priority
+        Args:
+            cusips: list of CUSIP identifiers
+            fields: list of field mnemonics
+            request_name: Name for the request
+            title: Title for the request
+            priority: Request priority
 
-    Returns:
-        request_id: Unique identifier for the request
-    """
-    # Build universe from CUSIPs
-    universe = {
-        "@type": "Universe",
-        "contains": [
-            {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": cusip}
-            for cusip in cusips
-        ],
-    }
+        Returns:
+            the bloomberg request...
+        """
+        # Build universe from CUSIPs
+        if not cusips:
+            data_def = BloombergDataDef(sender.db_connection)
+            variable_request_list: list[str] = data_def.get_request_col_name_list(0)
+            static_request_list: list[str] = data_def.get_request_col_name_list(1)
+            cusips = get_phase3_tsy_cusips()
+            cusips = cusips[:1]  # lets only play with 1 now
 
-    # Build field list
-    field_list = {
-        "@type": "DataFieldList",
-        "contains": [{"mnemonic": field} for field in fields],
-    }
 
-    return sender.submit_data_request(
-        request_name, title, universe, field_list, priority=priority, queue_it=True
-    )
+        if not fields:
+            fields: list[str] = data_def.get_request_col_name_list(1)
+            # fields :list [str] = ["SECURITY_DES"]
+
+        universe = {
+            "@type": "Universe",
+            "contains": [
+                {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": cusip}
+                for cusip in cusips
+            ],
+        }
+        # Build field list
+        field_list = {
+            "@type": "DataFieldList",
+            "contains": [{"mnemonic": field} for field in fields],
+        }
+
+        request: BloombergRequest = sender.create_data_request(
+            request_name, title, universe, field_list, priority=priority
+        )
+        return request
 
 
 def setup_logging():
@@ -301,30 +357,13 @@ def main():
 
     sender = BloombergRequestSender()
     testing = True
-    # Example: Submit a CUSIP request
-    # request_id = sender.submit_cusip_request(
-    #     cusips=["91282CMV0", "91282CGS4"],
-    #     fields=["SECURITY_DES", "MATURITY", "ISSUE_DT"],
-    #     request_name="BondInfo",
-    #     title="Get Bond Information",
-    #     priority=1
-    # )
-    if (testing):
-        cusip_list: list[str] = get_phase3_cusips()
-        cusip_list = cusip_list[:1]  # lets only play with 1 now
 
-        request_id = submit_cusip_request(
-            sender,
-            cusips=cusip_list,
-            fields=["SECURITY_DES"],
-            request_name="TsyBondInfo",
-            title="Get Tsy Bond Info",
-            priority=DEFAULT_REQUEST_PRIORITY,
-        )
-
+    if testing:
+       request_id = sender.submit_command(REQUEST_TSY_CUSIPS)
+       print(f"Submitted Bloomberg request: {request_id}")
     # request_id = sender.submit_command("exit")
+
     sender.process_queued_requests()
-    print(f"Submitted Bloomberg request: {request_id}")
 
 
 # *****************************************************

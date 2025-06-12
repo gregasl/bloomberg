@@ -1,5 +1,4 @@
 from datetime import datetime
-import json
 import os
 import logging
 from typing import Any, Callable, Optional
@@ -94,7 +93,7 @@ class BloombergRestConnection:
         self.db_connection = _db_connection
         self.bbg_host = DEFAULT_BBG_HOST
         self.request_response_base = f"/eap/catalogs/{self.catalog}"
-
+        self.poll_response_base = f"/eap/catalogs/{self.catalog}/content/responses/?requestIdentifier="
         self.response_handlers: list[ResponseHandler] = []
 
     def _token_updater(self, token):
@@ -106,7 +105,7 @@ class BloombergRestConnection:
     def set_db_connection(self, _db_connection: BloombergDatabase):
         self.db_connection = _db_connection
 
-    def submit_to_bloomberg(self, request_data: dict[str, Any]) -> Any:
+    def submit_to_bloomberg(self, bbg_request: BloombergRequest) -> Any:
         """Submit request to Bloomberg Data License API"""
         request_uri = urljoin(self.bbg_host, self.request_response_base) + "/requests/"
         logger.info(f"Submitting to Bloomberg: {request_uri}")
@@ -114,14 +113,14 @@ class BloombergRestConnection:
         if (logger.getEffectiveLevel() == logging.DEBUG):
             try:
                #  json_str = json.dumps(payload, indent=2)
-               logger.debug(f"Sending payload to bbg request_payload type {request_data['request_payload']}")
+               logger.debug(f"Sending payload to bbg request_payload type {bbg_request.request_payload}")
             except Exception as e:
                 logger.debug(f"Error logging bbg send payload {e}")
                 raise
 
         try:
             response = self.session.post(
-                url=request_uri, json=request_data['request_payload'], headers={'api-version': '2'})
+                url=request_uri, json=bbg_request.request_payload, headers={'api-version': '2'})
         except Exception as e:
             logger.error(f"Sending to bbg failed on session post {e}")
             raise
@@ -235,7 +234,7 @@ class BloombergRestConnection:
             # Build Bloomberg content responses URI
             content_responses_uri = urljoin(
                 self.bbg_host,
-                f"/eap/catalogs/{self.catalog}/content/responses/?requestIdentifier={identifier}",
+                self.poll_response_base + identifier,
             )
 
             logger.info(f"Polling Bloomberg: {content_responses_uri}")
