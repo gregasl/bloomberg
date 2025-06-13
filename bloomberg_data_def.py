@@ -17,7 +17,7 @@ class BloombergDataDef :
     def load_bbg_data_def(self, ) -> list[dict[str, Any]]:
         try:
             query = """
-    select request_name, is_variable_data, suppress_sending, request_col_name, reply_col_name, data_type,
+    select request_name, is_variable_data, suppress_sending, request_col_name, reply_col_name, col_order, data_type,
     output_col_name, db_col_name 
         FROM bloomberg_data_def where suppress_sending = 0
                         """
@@ -28,19 +28,19 @@ class BloombergDataDef :
             raise
 
 
-    # def get_data_to_request(self, incl_static_data : bool) -> list[dict[str, Any]]:
-    #     # we always need id.... and need to check logic any more complicated need a function
-    #     return_list : list[dict[str, Any]] = list(filter(lambda x: \
-    #                                 ((x.get("request_col_name")=="ID")or((x.get("suppress_sending", 0) == 0)and((incl_static_data)or(x.get("is_variable_data"))))), \
-    #                                     self.data_defs))
-    #     return return_list
-    def get_data_to_request(self, incl_static_data : bool) -> list[dict[str, Any]]:
-         # we always need id.... and need to check logic any more complicated need a function
+    def get_columns(self, request_name : str) -> list[dict[str, Any]]:
+        return_list : list[dict[str, Any]] = list(filter(lambda x: \
+                                     (x.get("request_name") == request_name), self.data_defs))
+        sorted(return_list, key=lambda i: i['col_order'])
+        return return_list
+
+    def get_data_to_request(self, request_name : str, incl_static_data : bool) -> list[dict[str, Any]]:
+         # 
          return_list : list[dict[str, Any]] = list(filter(lambda x: \
-                                     (((x.get("suppress_sending", 0) == 0)and((incl_static_data)or(x.get("is_variable_data"))))), \
+                                     ((((x.get("request_name") == request_name)and(x.get("request_col_name") != "ID")and(x.get("suppress_sending", 0) == 0))and((incl_static_data)or(x.get("is_variable_data"))))), \
                                          self.data_defs))
          return return_list
 
-    def get_request_col_name_list(self, incl_static_data) -> list[str]:
-        return list(map(lambda x: x.get("request_col_name"), self.get_data_to_request(incl_static_data)))
+    def get_request_col_name_list(self, request_name : str, incl_static_data) -> list[str]:
+        return list(map(lambda x: x.get("request_col_name"), self.get_data_to_request(request_name, incl_static_data)))
         

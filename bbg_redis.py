@@ -43,6 +43,7 @@ class BloombergRedis:
         request_data = {
             "request_id": request.request_id,
             "identifier": request.identifier,
+            "request_name" : request.request_name,
             "request_payload": request.request_payload,
             "priority": request.priority,
             "retry_count": request.retry_count,

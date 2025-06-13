@@ -183,7 +183,7 @@ class BloombergRestConnection:
             return None
 
     def _process_bloomberg_response(
-        self, request_id: str, identifier: str, responses: list[Any]
+        self, request_id: str, identifier: str, request_name : str, responses: list[Any]
     ):
         """Process a Bloomberg API response"""
         try:
@@ -240,6 +240,7 @@ class BloombergRestConnection:
             logger.info(f"Polling Bloomberg: {content_responses_uri}")
 
             # Make the polling request
+            self.db_connection.update_response_poll(request_id)
             response = self.session.get(
                 content_responses_uri, headers={"api-version": "2"}
             )
@@ -253,11 +254,12 @@ class BloombergRestConnection:
                 if len(responses) > 0:
                     logger.info(f"Response received for request {request_id}")
                     self._process_bloomberg_response(request_id, identifier, responses)
-                    self.db_connection.update_request_status(request_id, "completed")
+                    self.db_connection.set_request_completed(request_id)
                 else:
                     logger.debug(
                         f"No response yet for request {request_id}, poll count: {poll_count + 1}"
                     )
+
 
             elif response.status_code == 404:
                 # Request not found - might be expired or invalid

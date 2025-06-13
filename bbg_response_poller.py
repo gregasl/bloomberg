@@ -180,10 +180,11 @@ class BloombergResponsePoller:
             key : str = response_payload["key"]
             request_id : str = response_payload["request_id"]
             identifier : str = response_payload["identifier"]
+            request_name : str = response_payload["request_name"]
             csv_data = self.bbg_connection.download_response_content(key)
 
             # Store CSV data in database
-            self.db_connection.store_csv_data(request_id=request_id, identifier=identifier, csv_data=csv_data)
+            self.db_connection.store_csv_data(request_id=request_id, identifier=identifier, request_name=request_name, csv_data=csv_data)
 
             logger.info(f"CSV response processed for request {request_id}")
 

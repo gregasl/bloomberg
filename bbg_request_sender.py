@@ -99,7 +99,7 @@ class BloombergRequestSender:
         else:
             # Mark as failed
             self.db_connection.set_request_failed(request_id)
-            self.db_connection.store_send_error_response(request_id, error_message)
+            self.db_connection.store_error_response(request_id, error_message)
 
             logger.error(
                 f"Request {request_id} failed permanently after {max_retries} retries"
@@ -111,17 +111,16 @@ class BloombergRequestSender:
         try:
             request_id = request_data.request_id
             identifier = request_data.identifier
+            request_name = request_data.request_name
         except Exception as e:
             logger.error(f"Error processing request: {e}")
 
         try:
             # Update status in database
-            self.db_connection.save_bbg_request(request_data, request_name=request_data.request_payload['name'],
-                                                 title=request_data.request_payload['title'], status='processing')
+            self.db_connection.save_bbg_request(request_data, title=request_data.request_payload['title'], status='processing')
 
             # Submit request to Bloomberg
             response = self.bbg_connection.submit_to_bloomberg(request_data)
-
             if response.status_code == 200 or response.status_code == 201:
                 # Request submitted successfully
                 self.db_connection.set_request_submitted(request_id)
@@ -177,8 +176,8 @@ class BloombergRequestSender:
 
                 for request_data in requests_data:
                     logger.debug(f"request from q {request_data}")
-                    request_dict: dict[str, Any] = json.loads(request_data[0])
-                    priority = request_data[1]
+                    orig_request_json, priority = request_data
+                    request_dict: dict[str, Any] = json.loads(orig_request_json)
                     cmd : str = request_dict['request_id']
 
                     if cmd == EXIT_CMD:
@@ -194,18 +193,16 @@ class BloombergRequestSender:
                             bbg_request = None  # self.submit_mbs_cusip_request()
                         else: # otherwise we try to use the json here to do something
                             # this is now wokinh
-                            request_json, priority = request_data
-                            if (request_json):
-                                request_dict: dict[str, Any] = json.loads(request_json)
+                            if (orig_request_json):
+                                request_dict: dict[str, Any] = json.loads(orig_request_json)
 
                         if (bbg_request):
-                            request_json = bbg_request.toJSON()
                             self._process_single_request(bbg_request)
-                            self.redis_connection.remove_sender_request(request_json)
+                            self.redis_connection.remove_sender_request(orig_request_json)
                         elif request_json:
-                            bbg_request = BloombergRequest.create_from_json(request_json)
+                            bbg_request = BloombergRequest.create_from_json(orig_request_json)
                             self._process_single_request(bbg_request)
-                            self.redis_connection.remove_sender_request(request_json)
+                            self.redis_connection.remove_sender_request(orig_request_json)
                         else:
                             logger.info(f"On command {requests_data} no json was generated")
                             time.sleep(sleep_time)  # IDK about these sleeps
@@ -263,6 +260,7 @@ class BloombergRequestSender:
             request_id=request_id,
             request_type=REQUEST_TYPE_BBG_REQUEST,
             identifier=identifier,
+            request_name=request_name,
             request_payload=request_payload,
             priority=priority,
             max_retries=max_retries,
@@ -286,6 +284,7 @@ class BloombergRequestSender:
         bloomberg_request = BloombergRequest(
             request_id=cmd,
             identifier="",
+            request_name="TsyBondInfo",
             request_payload="",
             request_type=REQUEST_TYPE_CMD,
             priority=priority,
@@ -319,14 +318,14 @@ class BloombergRequestSender:
         # Build universe from CUSIPs
         if not cusips:
             data_def = BloombergDataDef(sender.db_connection)
-            variable_request_list: list[str] = data_def.get_request_col_name_list(0)
-            static_request_list: list[str] = data_def.get_request_col_name_list(1)
+            variable_request_list: list[str] = data_def.get_request_col_name_list(request_name, 0)
+            static_request_list: list[str] = data_def.get_request_col_name_list(request_name, 1)
             cusips = get_phase3_tsy_cusips()
             cusips = cusips[:1]  # lets only play with 1 now
 
 
         if not fields:
-            fields: list[str] = data_def.get_request_col_name_list(1)
+            fields: list[str] = data_def.get_request_col_name_list(request_name, 1)
             # fields :list [str] = ["SECURITY_DES"]
 
         universe = {
@@ -361,7 +360,7 @@ def main():
     if testing:
        request_id = sender.submit_command(REQUEST_TSY_CUSIPS)
        print(f"Submitted Bloomberg request: {request_id}")
-    # request_id = sender.submit_command("exit")
+       request_id = sender.submit_command("exit")
 
     sender.process_queued_requests()
 

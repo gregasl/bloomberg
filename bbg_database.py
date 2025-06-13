@@ -46,7 +46,7 @@ class BloombergDatabase:
         )
 
     def save_bbg_request(
-        self, request: BloombergRequest, request_name: str, title: str, status : str ='pending'
+        self, request: BloombergRequest, title: str, status : str ='pending'
     ):
         """Store request in SQL Server database"""
         try:
@@ -58,7 +58,7 @@ class BloombergDatabase:
             params : tuple = (
                 request.request_id,
                 request.identifier,
-                request_name,
+                request.request_name,
                 title,
                 json.dumps(request.request_payload),
                 request.priority,
@@ -73,11 +73,13 @@ class BloombergDatabase:
             logger.error(f"Error storing request in database: {e}")
             raise
 
-    def update_request_status(self, request_id: str, status: str):
+    def update_request_status(self, request_id: str, status: str, time_update : str = ""):
         """Update request status in database"""
         try:
-            query: str = (
-                "UPDATE bloomberg_requests SET status = ?, updated_at = GETDATE() WHERE request_id = ?"
+            query: str = " ".join(
+                ["UPDATE bloomberg_requests SET status = ?, updated_at = GETDATE()",
+                time_update,
+                "WHERE request_id = ?"]
             )
             params = (status, request_id)
             logger.info(query)
@@ -106,15 +108,49 @@ class BloombergDatabase:
 
         except Exception as e:
             logger.error(f"Error updating submitted timestamp: {e}")
-    
+
+    def update_response_poll(self, request_id: str):
+        """Update response poll and timer in database"""
+        try:
+            query: str = (
+                "UPDATE bloomberg_requests SET response_poll_count = response_poll_count + 1, last_poll_at = GETDATE() WHERE request_id = ?"
+            )
+            params = request_id
+            logger.info(query + " " + request_id)
+            self.db_connection.execute_param_query(
+                query=query, params=params, commit=True
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating submitted timestamp: {e}")
+
+
     def set_request_submitted(self, request_id):
-        self.update_request_status(request_id, 'submitted')
-        self.update_submitted_timestamp(request_id)
+        self.update_request_status(request_id, 'submitted', time_update=",submitted_at = GETDATE()")
+
+    def set_request_completed(self, request_id):
+        self.update_request_status(request_id, 'completed', time_update=",completed_at = GETDATE()")
 
     def set_request_processing(self, request_id):
         self.update_request_status(request_id, 'processing')
     
-    def store_send_error_response(self, request_id: str, error_message: str):
+    def store_response(self, request_id : str, msg : str, status : str):
+        try:
+            response_id = str(uuid.uuid4())
+            query: str = (
+                "UPDATE bloomberg_requests SET response_id = ?, response = ?, response_status = ? WHERE request_id = ?"
+            )
+            params: tuple = (response_id, msg, status, request_id)
+            logger.info(query)
+            logger.info(params)
+            self.db_connection.execute_param_query(
+                query=query, params=params, commit=True
+            )
+        except Exception as e:
+            logger.error(f"Error storing response msg: {e}")
+            raise
+
+    def store_error_response(self, request_id: str, error_message: str):
         """
         Stores an error response associated with a given request ID in the database.
 
@@ -125,19 +161,7 @@ class BloombergDatabase:
         Raises:
             Exception: Logs any exceptions that occur during the database operation.
         """
-        try:
-            response_id = str(uuid.uuid4())
-            query: str = """INSERT INTO bloomberg_responses 
-                    (response_id, request_id, identifier, error_message)
-                    VALUES (?, ?, '', ?)"""
-            params: tuple = (response_id, request_id, error_message)
-            logger.info(query)
-            logger.info(params)
-            self.db_connection.execute_param_query(
-                query=query, params=params, commit=True
-            )
-        except Exception as e:
-            logger.error(f"Error storing error response: {e}")
+        self.store_response(request_id=request_id, msg=error_message, status='error')
 
     def get_request_status(self, request_id: str) -> Optional[dict[str, Any]]:
         """Retrieve the status and related information for a specific Bloomberg request.
@@ -205,7 +229,7 @@ class BloombergDatabase:
             logger.error(f"Error getting active polling requests: {e}")
             return []
 
-    def store_csv_data(self, request_id: str, identifier: str, csv_data: str):
+    def store_csv_data(self, request_id: str, identifier: str, request_name:str, csv_data: str):
         """Stores CSV data into the 'bloomberg_data' table in the database.
         Args:
             request_id (str): The unique identifier for the data request.
@@ -216,12 +240,13 @@ class BloombergDatabase:
 
         try:
             query: str = """
-                    INSERT INTO bloomberg_data (request_id, identifier, data_type, data_content, ts)
-                    VALUES (?, ?, 'csv', ?, GETDATE())
+                    INSERT INTO bloomberg_data (request_id, identifier, request_name, data_type, data_content, ts)
+                    VALUES (?, ?, ?, 'csv', ?, GETDATE())
                 """
             params: tuple = (
                 request_id,
                 identifier,
+                request_name,
                 csv_data,
             )
             logger.info(query + " " + request_id)
@@ -231,6 +256,7 @@ class BloombergDatabase:
 
         except Exception as e:
             logger.error(f"Error storing CSV data: {e}")
+            raise
 
     def store_json_data(self, request_id: str, identifier: str, json_data: dict[str, Any]):
         """Store JSON data in database"""
@@ -250,6 +276,7 @@ class BloombergDatabase:
             )
         except Exception as e:
             logger.error(f"Error storing JSON data: {e}")
+            raise
 
     def store_raw_response(self, request_id: str, identifier: str, response_data: Any):
         """Store raw response data in database"""
@@ -273,27 +300,9 @@ class BloombergDatabase:
             logger.error(f"Error storing raw response: {e}")
 
     def store_poll_error_response(
-        self, request_id: str, error_message: str, status_code: int
+        self, request_id: str, error_message: str
     ):
-        """Store error response in database"""
-        try:
-            query: str = """
-                    INSERT INTO error_responses (request_id, error_message, status_code, created_at)
-                    VALUES (?, ?, ?, GETDATE())
-                """
-            params: tuple = (
-                request_id,
-                error_message,
-                status_code,
-            )
-            logger.info(query + " " + request_id)
-            self.db_connection.execute_param_query(
-                query=query, params=params, commit=True
-            )
-
-        except Exception as e:
-            logger.error(f"Error storing error response: {e}")
-
+        self.store_response(request_id=request_id, msg=error_message, status='poll_error')
 
     def update_poll_count(self, request_id: str, poll_count: int):
         """Update poll count for a request"""
@@ -318,17 +327,18 @@ class BloombergDatabase:
 
     def cleanup_old_requests(self, days_old: int = 7):
         """Clean up old completed/error requests"""
-        try:
-            query: str = """
-                DELETE FROM bloomberg_polling_status 
-                WHERE status IN ('completed', 'error') 
-                AND created_at < DATEADD(day, -?, GETDATE())
-            """
-            params = days_old
-            self.db_connection.execute_param_query(
-                query=query, params=params, commit=True
-            )
-            logger.info(f"Cleaned up old polling requests")
+        logger.error("Needs to be rewritted clean up bloomberg_requests")()
+        # try:
+        #     query: str = """
+        #         DELETE FROM bloomberg_polling_status 
+        #         WHERE status IN ('completed', 'error') 
+        #         AND created_at < DATEADD(day, -?, GETDATE())
+        #     """
+        #     params = days_old
+        #     self.db_connection.execute_param_query(
+        #         query=query, params=params, commit=True
+        #     )
+        #     logger.info(f"Cleaned up old polling requests")
 
-        except Exception as e:
-            logger.error(f"Error cleaning up old requests: {e}")
+        # except Exception as e:
+        #     logger.error(f"Error cleaning up old requests: {e}")

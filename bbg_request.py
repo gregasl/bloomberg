@@ -19,6 +19,7 @@ class BloombergRequest:
     request_type : str
     request_id: str  # on REQUEST TYPE CMD the command is there on BBG_REQUEST "BBG request_id?"
     identifier: str
+    request_name : str
     request_payload: dict[str, Any] = None
     priority: int = 4 
     retry_count: int = 0
@@ -34,7 +35,7 @@ class BloombergRequest:
     @staticmethod
     def create_from_json(inJSON : str):
         tmp_dict = json.loads(inJSON)
-        bbgRequest = BloombergRequest("RT", "RI", "ID")
+        bbgRequest = BloombergRequest("RT", "RI", "ID", "RN")
         for key, value in tmp_dict.items():
             bbgRequest.__dict__[key] = value 
 

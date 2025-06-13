@@ -14,10 +14,14 @@ CREATE TABLE bloomberg_data_def (
                                                  /* or turn off if no longer needed */
     request_col_name NVARCHAR(128) NOT NULL, /* many times these 2 will be the same */
     reply_col_name NVARCHAR(128) NOT NULL,
+    col_order INT NOT NULL,
     data_type NVARCHAR(12) NOT NULL DEFAULT 'TEXT', /* lets use this later */
     output_col_name NVARCHAR(128) NULL,
     db_col_name NVARCHAR(128) NOT NULL,
     ts DATETIME2 NOT NULL DEFAULT (GETDATE())
     PRIMARY KEY(request_col_name, request_name)
 )
+go
+
+CREATE NONCLUSTERED INDEX bbg_data_def_col_order_indx on dbo.bloomberg_data_def(request_name, col_order, reply_col_name)
 go
