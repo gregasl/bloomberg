@@ -199,6 +199,7 @@ class BloombergRestConnection:
                     "request_id": request_id,
                     "identifier": identifier,
                     "response_id": response_item.get("responseId", str(uuid.uuid4())),
+                    "request_name": request_name,
                     "status_code": 200,
                     "timestamp": datetime.now().isoformat(),
                     "raw_response": response_item,
@@ -227,6 +228,7 @@ class BloombergRestConnection:
         """Poll a single request for responses"""
         request_id = request["request_id"]
         identifier = request["identifier"]
+        request_name = request['request_name']
         # () poll_count = request["poll_count"]
         poll_count = 0
 
@@ -253,7 +255,8 @@ class BloombergRestConnection:
 
                 if len(responses) > 0:
                     logger.info(f"Response received for request {request_id}")
-                    self._process_bloomberg_response(request_id, identifier, responses)
+                    self._process_bloomberg_response(request_id=request_id, identifier=identifier, 
+                                                     request_name=request_name, responses=responses)
                     self.db_connection.set_request_completed(request_id)
                 else:
                     logger.debug(

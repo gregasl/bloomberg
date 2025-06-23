@@ -218,7 +218,7 @@ class BloombergDatabase:
             of a submitted request. Returns an empty list if an error occurs during the database query."""
         try:
             query: str = """
-                SELECT request_id, identifier
+                SELECT request_id, identifier, name as request_name
                 FROM bloomberg_requests 
                 WHERE status = 'submitted'
             """
@@ -258,16 +258,17 @@ class BloombergDatabase:
             logger.error(f"Error storing CSV data: {e}")
             raise
 
-    def store_json_data(self, request_id: str, identifier: str, json_data: dict[str, Any]):
+    def store_json_data(self, request_id: str, identifier: str, request_name : str, json_data: dict[str, Any]):
         """Store JSON data in database"""
         try:
             query: str = """
-                    INSERT INTO bloomberg_data (request_id, data_type, data_content, created_at)
+                    INSERT INTO bloomberg_data (request_id, data_type, request_name, data_content, created_at)
                     VALUES (?, ?,'json', ?, GETDATE())
                 """
             params: tuple = (
                 request_id,
                 identifier,
+                request_name,
                 json.dumps(json_data),
             )
             logger.info(query + " " + request_id)
@@ -278,17 +279,18 @@ class BloombergDatabase:
             logger.error(f"Error storing JSON data: {e}")
             raise
 
-    def store_raw_response(self, request_id: str, identifier: str, response_data: Any):
+    def store_raw_response(self, request_id: str, identifier: str, request_name, response_data: Any):
         """Store raw response data in database"""
         try:
             query: str = """
-                INSERT INTO bloomberg_data (request_id, data_type, data_content, created_at)
-                VALUES (?, 'raw', ?, GETDATE())
+                INSERT INTO bloomberg_data (request_id, data_type, request_name, data_content, created_at)
+                VALUES (?, 'raw', ?, ?, GETDATE())
             """
             # not sure about json dumps raw?
             params: tuple = (
                 request_id,
                 identifier,
+                request_name,
                 json.dumps(response_data) if response_data.len() > 0 else "",
             )
 

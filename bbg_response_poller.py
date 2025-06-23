@@ -2,8 +2,8 @@ import re
 import time
 import orjson
 import logging
-from logging.handlers import RotatingFileHandler
-from ASL import ASL_Logging
+from asl_logging import ASL_Logging
+from asl_rotating_handlers import ASL_DateRotatingFileHandler
 from datetime import datetime
 from typing import Any, Callable
 
@@ -228,11 +228,16 @@ class BloombergResponsePoller:
     def _handle_default_response(self, response: dict[str, Any]):
         """Handle all other responses"""
         try:
-            request_id = response.get("request_id")
+            request_id = response["request_id"]
+            identifier = response["identifier"]
+            request_name = response["request_name"]
             response_data = response.get("response_data", {})
+            
 
             # Store raw response data
-            self.db_connection.store_raw_response(request_id, response_data)
+            self.db_connection.store_raw_response(request_id=request_id, 
+                                                  identifier=identifier, request_name=request_name,
+                                                  response_data=response_data)
 
             logger.info(f"Default response processed for request {request_id}")
 
@@ -266,7 +271,7 @@ class BloombergResponsePoller:
 
 def setup_logging():
  ## setup logging --
-    asl_logger = ASL_Logging(log_file="bbg_request_receiver.log", log_path="./logs")
+    asl_logger = ASL_Logging(log_file="bbg_request_receiver.log", log_path="./logs", useBusinessDateRollHandler=True)
 
 def main():
     try:

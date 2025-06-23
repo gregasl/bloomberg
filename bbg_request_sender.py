@@ -3,7 +3,8 @@ import orjson
 import time
 import uuid
 import logging
-from ASL import ASL_Logging
+from asl_logging import ASL_Logging
+from asl_rotating_handlers import ASL_DateRotatingFileHandler
 
 from typing import Any
 
@@ -179,9 +180,13 @@ class BloombergRequestSender:
                     orig_request_json, priority = request_data
                     request_dict: dict[str, Any] = json.loads(orig_request_json)
                     cmd : str = request_dict['request_id']
+                    cmd = cmd.upper()
 
                     if cmd == EXIT_CMD:
                         stop_processing = True
+                        self.redis_connection.remove_sender_request(orig_request_json)
+                        # break the for loop...
+                        break 
                     else:  # process data commands
                         bbg_request : BloombergRequest = None
 
@@ -199,7 +204,7 @@ class BloombergRequestSender:
                         if (bbg_request):
                             self._process_single_request(bbg_request)
                             self.redis_connection.remove_sender_request(orig_request_json)
-                        elif request_json:
+                        elif orig_request_json:
                             bbg_request = BloombergRequest.create_from_json(orig_request_json)
                             self._process_single_request(bbg_request)
                             self.redis_connection.remove_sender_request(orig_request_json)
@@ -348,19 +353,20 @@ class BloombergRequestSender:
 
 
 def setup_logging():
-    asl_logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs")
+    asl_logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs", useBusinessDateRollHandler=True)
 
 
 def main():
     setup_logging()
 
     sender = BloombergRequestSender()
-    testing = True
+    testing = False
 
     if testing:
        request_id = sender.submit_command(REQUEST_TSY_CUSIPS)
        print(f"Submitted Bloomberg request: {request_id}")
-       request_id = sender.submit_command("exit")
+       # after score commadnds are ordered lexigraphically so... lets update cmd to +1
+       request_id = sender.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
 
     sender.process_queued_requests()
 
