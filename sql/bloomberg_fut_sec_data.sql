@@ -16,7 +16,8 @@ create table bloomberg_fut_sec_data(
     first_deliv_date date not null,
     last_deliv_date date not null,
     ctd_cusip nchar(9) not null,
-    deliver_cusip_list nvarchar(4000) NOT NULL
+    deliver_cusip_list nvarchar(4000) NOT NULL,
+    ts DATETIME2 DEFAULT GETDATE()
 )
 go 
 

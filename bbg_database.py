@@ -1,3 +1,5 @@
+import datetime
+from datetime import timedelta
 import json  # for storing in db
 import os
 import logging
@@ -326,6 +328,66 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error updating poll count: {e}")
 
+    def get_request_definitions(self) -> dict[str, dict[str, Any]]:
+        try:
+            query : str = """select request_name, request_title, priority, save_table, save_file,
+            retry_wait_sec, max_request_retries, response_poll_wait_sec, max_response_polls
+            from bloomberg_requests_def
+            """
+            logger.info(query)
+            
+            db_result : list[dict[str, Any]] = self.db_connection.fetch(query, "DICT")
+            returnVal : dict[str, dict[str, Any]] = {}
+
+            for row in db_result:
+                print(row['request_name'])
+                returnVal[row['request_name']] = row
+
+            return returnVal         
+        except Exception as e:
+           logger.error(f"Error updating poll count: {e}")
+
+
+    def get_last_date_for_request(self, request_name : str = None) -> dict[str, datetime.date]:
+        try:
+            limit_date = datetime.date.today() - timedelta(days=7)
+
+            query : str = "select request_name, max(business_date) from bloomberg_data where business_date >= ?"
+            params : tuple = (str(limit_date))
+
+            if (request_name is not None):
+                query = query + " and request_name = ?"
+                params : tuple = (
+                    limit_date,
+                    request_name,
+                )
+            query = query + " group by request_name"
+            logger.info(query)
+            self.db_connection.execute_param_query(
+                query=query, params=params, commit=True
+            )
+        except Exception as e:
+           logger.error(f"Error updating poll count: {e}")
+
+
+    def get_cusips_for_date(request_name : str, bdate : datetime.date = None) -> list [str]:
+          try:
+            query : str = """
+                    select cusip from bloomberg_data where  
+                    
+                    WHERE request_name = ? and business_date >= ?
+                """
+            params : tuple = (
+                    request_name,
+                    bdate,
+                )
+            logger.info(query + " " + request_id)
+            self.db_connection.execute_param_query(
+                query=query, params=params, commit=True
+            )
+
+          except Exception as e:
+            logger.error(f"Error updating poll count: {e}")
 
     def cleanup_old_requests(self, days_old: int = 7):
         """Clean up old completed/error requests"""

@@ -5,6 +5,7 @@ import pandas as pd
 #  import send_email
 import os
 import logging
+from ASL import ASL_Logging
 import datetime
 import ASL
 import sys
@@ -13,6 +14,9 @@ import sys
 # Changing working directory
 ####################################
 #
+
+logger = logging.getLogger(__name__)
+
 BDAY = '//aslfile01/ASLCAP/Operations/TodayHoliday.txt'
 
 def wi() -> pd.DataFrame:
@@ -121,39 +125,57 @@ def get_phase3_tsy_cusips() -> list[str]:
     ret_list : list[str] = df['CUSIP_NUMBER']
     return ret_list
 
+
+def get_phase3_mbs_cusips() -> list[str]:
+  try:
+        FISconnct = 'DRIVER={SQL Server};SERVER=ASLFISSQL;DATABASE=ASLFIS;UID=aslrisk;PWD=1Welcome2!'
+        connection = pyodbc.connect(FISconnct, autocommit=True)
+  except Exception as e:
+        logger.error("Error connecting to DB {e}")
+        return []
+  
+        # ASL.send_email.email('CONNECTION ERROR - Mortgage - Request Builder', 'Hi, \n\nThere is a connection error with ASLFIS01.')
+  sql = '''\
+    SELECT CUSIP_NUMBER, SEC_TYPE
+    FROM dbo.FPDMST;
+    '''
+  df = pd.read_sql(sql, connection)
+  df = df[df['SEC_TYPE'] == 'M'][['CUSIP_NUMBER']]
+  df['CUSIP_NUMBER'] = df['CUSIP_NUMBER'].str.strip()
+  df = df.drop_duplicates()
+  ret_list : list[str] = df['CUSIP_NUMBER']
+  return ret_list
+
+def get_futures_tickers() -> list[str]:
+  try:
+        ALSConnect = 'DRIVER={SQL Server};SERVER=ASLDB03;DATABASE=playdb;Trusted_Connection=yes'
+        connection = pyodbc.connect(ALSConnect, autocommit=True)
+  except Exception as e:
+    logger.error("Error connecting to DB {e}")
+
+  
+  sql = """
+    SELECT  sec_id as ticker
+    FROM dbo.bloomberg_sec_id where sec_id_type = 'FUT';
+    """
+  
+  try:
+    df = pd.read_sql(sql, connection)
+    connection.close()
+    df['ticker'] = df['ticker'].str.strip()
+    df = df.drop_duplicates()
+    ret_list : list[str] = df['ticker']
+    return ret_list
+  except Exception as e:
+    logger.error(f"Unable to select cusips for futures request {e}")
+
+  return []
+
 ### left over from last one getting there.
 ### 
 def write_csv_file(df : pd.DataFrame, file_name : str) -> None:    
     df = df.reset_index(drop=True)
     df.to_csv(file_name, index=False)
-
-    # try:
-    #     req = open(path + '/treasury.req', 'r')
-    # except:
-    #     ASL.send_email('FILE-READING ERROR - Treasury - Request Builder', 'Hi,\n\nThe program(write_req.py) cannot open file treasury.req in aslrisk01.', )
-    # file = req.read()
-    # req.close()
-    # start_num = file.find('START-OF-DATA')
-    # start_num = start_num + len('START-OF-DATA') + 1
-    # end_num = file.find('END-OF-DATA')
-    # start_str = file[:start_num]
-    # end_str = file[end_num:]
-
-    # string = ''
-    # for index, row in df.iterrows():
-    #     string = string + str(row['CUSIP_NUMBER'].strip()) + '\n'
-    # lst = wi()
-    # if len(lst) > 0:
-    #     for i in lst:
-    #         if i not in df['CUSIP_NUMBER'].str.strip().to_list():
-    #             string = string + str(i) + '\n'
-    # string = start_str + string + end_str
-    # try:
-    #     file = open(path+'/treasury.req', 'w')
-    #     file.write(string)
-    # except:
-    #     ASL.send_email('FILE-WRITING ERROR - Request Builder','Hi,\n\nThe program(write_req.py) cannot write file treasury.req to aslrisk01.', "tech@aslcap.com")
-    # file.close()
 
 
 if __name__ == '__main__':
@@ -162,7 +184,7 @@ if __name__ == '__main__':
                             format='%(asctime)s %(levelname)s %(name)s %(message)s')
         logger = logging.getLogger(__name__)
         try:
-            cusips = get_phase3_tsy_cusips(environment="", email="greg.mahoney@aslcap.com")
+            cusips = get_phase3_tsy_cusips()
            #  open(file_dir + 'write_treasury_price.txt', 'a').close()
         except Exception as err:
             print(err)

@@ -52,7 +52,8 @@ create table bloomberg_tsy_sec_data(
     oas_key_rate_7yr NUMERIC(8,5) NULL,
     oas_key_rate_10yr NUMERIC(8,5) NULL,
     oas_key_rate_20yr NUMERIC(8,5) NULL,
-    oas_key_rate_30yr NUMERIC(8,5) NULL
+    oas_key_rate_30yr NUMERIC(8,5) NULL,
+    ts DATETIME2 DEFAULT GETDATE()
 )
 go 
 

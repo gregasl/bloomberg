@@ -2,8 +2,8 @@ import re
 import time
 import orjson
 import logging
-from asl_logging import ASL_Logging
-from asl_rotating_handlers import ASL_DateRotatingFileHandler
+from ASL import ASL_Logging
+from ASL.utils.asl_rotating_handlers import ASL_DateRotatingFileHandler
 from datetime import datetime
 from typing import Any, Callable
 
@@ -59,13 +59,14 @@ class BloombergResponsePoller:
 
         # Processing state
         self.is_running = False
+        ## these are in the defs below need to fix that
         self.poll_interval = (
             15  # seconds - Bloomberg recommends not polling too frequently
         )
         self.max_poll_attempts = (
             240  # Maximum polling attempts (1 hour at 15-second intervals)
         )
-
+        self.request_definitions = self.db_connection.get_request_definitions()
         self._register_default_handlers()
 
     def _get_response_content_type(self, response_payload : dict[str, Any]) -> str:

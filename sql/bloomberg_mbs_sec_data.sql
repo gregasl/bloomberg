@@ -39,7 +39,8 @@ create table bloomberg_mbs_sec_data(
     key_rate_dur_15yr numeric(8,5) NULL,
     key_rate_dur_20yr numeric(8,5) NULL,
     key_rate_dur_25yr numeric(8,5) NULL,
-    key_rate_dur_30yr numeric(8,5) NULL 
+    key_rate_dur_30yr numeric(8,5) NULL,
+    ts DATETIME2 DEFAULT GETDATE()
 )
 go 
 

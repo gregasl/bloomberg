@@ -3,10 +3,10 @@ import orjson
 import time
 import uuid
 import logging
-from asl_logging import ASL_Logging
-from asl_rotating_handlers import ASL_DateRotatingFileHandler
+from ASL import ASL_Logging
+# from ASL import ASL_DateRotatingFileHandler, ASL_RotatingFileHandler, ASL_TimedRotatingFileHandler
 
-from typing import Any
+from typing import Any, Tuple
 
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
@@ -21,7 +21,7 @@ from bbg_send_cmds import (
     REQUEST_FUT_CUSIPS,
     REQUEST_MBS_CUSIPS,
 )
-from get_cusip_list import get_phase3_tsy_cusips
+from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase3_mbs_cusips
 
 MAX_LOOPS = -1  # wait for exit...
 MIN_WAIT_TIME = 2
@@ -30,7 +30,6 @@ MAX_WAIT_TIME = 20
 ## Just trying to get it running and tested
 
 # Attach logging
-asl_logger = None
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +72,9 @@ class BloombergRequestSender:
 
         # Redis connection
         self.redis_connection = BloombergRedis(redis_host=redis_host)
+        self.data_def = BloombergDataDef(self.db_connection)
+        self.request_definitions = self.db_connection.get_request_definitions()
+       # self.request_dates = self.db_connection.get_last_date_for_request()
 
         logger.info("Init done")
 
@@ -193,9 +195,9 @@ class BloombergRequestSender:
                         if cmd == REQUEST_TSY_CUSIPS:
                             bbg_request  = self.create_tsy_cusip_request()
                         elif cmd == REQUEST_FUT_CUSIPS:
-                             bbg_request = None  # self.submit_fut_cusip_request()
+                             bbg_request = self.create_futures_ticker_request()
                         elif cmd == REQUEST_MBS_CUSIPS:
-                            bbg_request = None  # self.submit_mbs_cusip_request()
+                            bbg_request = self.create_mbs_cusip_request()  # self.submit_mbs_cusip_request()
                         else: # otherwise we try to use the json here to do something
                             # this is now wokinh
                             if (orig_request_json):
@@ -298,11 +300,11 @@ class BloombergRequestSender:
         self.redis_connection.queue_request_to_sender(bloomberg_request)
         return bloomberg_request.request_id
 
-
+        
     def create_tsy_cusip_request(
         sender,
         cusips: list = None,
-        fields: list = None,
+        fields: set[str] = None,
         request_name: str = "TsyBondInfo",
         title: str = "Tsy Bond Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
@@ -322,15 +324,15 @@ class BloombergRequestSender:
         """
         # Build universe from CUSIPs
         if not cusips:
-            data_def = BloombergDataDef(sender.db_connection)
-            variable_request_list: list[str] = data_def.get_request_col_name_list(request_name, 0)
-            static_request_list: list[str] = data_def.get_request_col_name_list(request_name, 1)
             cusips = get_phase3_tsy_cusips()
             cusips = cusips[:1]  # lets only play with 1 now
 
+        variable_request_list: set[str] = sender.data_def.get_request_col_name_list(request_name, 0)
+        static_request_list: set[str] = sender.data_def.get_request_col_name_list(request_name, 1)
 
-        if not fields:
-            fields: list[str] = data_def.get_request_col_name_list(request_name, 1)
+        if fields:
+            variable_request_list = variable_request_list.intersection(fields)
+            static_request_list = static_request_list.intersection(fields)
             # fields :list [str] = ["SECURITY_DES"]
 
         universe = {
@@ -350,20 +352,122 @@ class BloombergRequestSender:
             request_name, title, universe, field_list, priority=priority
         )
         return request
+    
+    def create_mbs_cusip_request(
+        sender,
+        cusips: list = None,
+        fields: list = None,
+        request_name: str = "MBSBondInfo",
+        title: str = "MBS Bond Info Request",
+        priority: int = DEFAULT_REQUEST_PRIORITY,
+    ) -> BloombergRequest:
+        """
+        Convenience method to submit CUSIP-based requests
+
+        Args:
+            cusips: list of CUSIP identifiers
+            fields: list of field mnemonics
+            request_name: Name for the request
+            title: Title for the request
+            priority: Request priority
+
+        Returns:
+            the bloomberg request...
+        """
+        # Build universe from CUSIPs
+        if not cusips:
+            cusips = get_phase3_mbs_cusips()
+            cusips = cusips[:1]  # lets only play with 1 now
+
+
+        if not fields:
+            variable_request_list: list[str] = sender.data_def.get_request_col_name_list(request_name, 0)
+            static_request_list: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
+            fields: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
+            # fields :list [str] = ["SECURITY_DES"]
+
+        universe = {
+            "@type": "Universe",
+            "contains": [
+                {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": cusip}
+                for cusip in cusips
+            ],
+        }
+        # Build field list
+        field_list = {
+            "@type": "DataFieldList",
+            "contains": [{"mnemonic": field} for field in fields],
+        }
+
+        request: BloombergRequest = sender.create_data_request(
+            request_name, title, universe, field_list, priority=priority
+        )
+        return request
+    
+    def create_futures_ticker_request(
+        sender,
+        tickers: list = None,
+        fields: list = None,
+        request_name: str = "FuturesInfo",
+        title: str = "Futures Info Request",
+        priority: int = DEFAULT_REQUEST_PRIORITY,
+    ) -> BloombergRequest:
+        """
+        Convenience method to submit CUSIP-based requests
+
+        Args:
+            cusips: list of CUSIP identifiers
+            fields: list of field mnemonics
+            request_name: Name for the request
+            title: Title for the request
+            priority: Request priority
+
+        Returns:
+            the bloomberg request...
+        """
+        # Build universe from CUSIPs
+        if not tickers:
+            tickers = get_futures_tickers()
+            tickers = tickers[:1]  # lets only play with 1 now
+
+        if not fields:
+            fields: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
+        
+        variable_request_list: list[str] = sender.data_def.get_request_col_name_list(request_name, 0)
+        static_request_list: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
+        
+        #is it still CUSIP??? Need to check
+        universe = {
+            "@type": "Universe",
+            "contains": [
+                {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": ticker}
+                for ticker in tickers
+            ],
+        }
+        # Build field list
+        field_list = {
+            "@type": "DataFieldList",
+            "contains": [{"mnemonic": field} for field in fields],
+        }
+
+        request: BloombergRequest = sender.create_data_request(
+            request_name, title, universe, field_list, priority=priority
+        )
+        return request
 
 
 def setup_logging():
-    asl_logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs", useBusinessDateRollHandler=True)
+    logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs", useBusinessDateRollHandler=True)
 
 
 def main():
     setup_logging()
 
     sender = BloombergRequestSender()
-    testing = False
+    testing = True
 
     if testing:
-       request_id = sender.submit_command(REQUEST_TSY_CUSIPS)
+       request_id = sender.submit_command(REQUEST_MBS_CUSIPS)
        print(f"Submitted Bloomberg request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
