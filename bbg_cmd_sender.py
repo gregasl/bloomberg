@@ -7,6 +7,7 @@ from bbg_request import BloombergRequest, DEFAULT_CMD_PRIORITY, DEFAULT_REQUEST_
 from bbg_request import LAST_CMD_PRIORITY, REQUEST_TYPE_CMD, REQUEST_TYPE_BBG_REQUEST
 from bloomberg_data_def import BloombergDataDef
 from bbg_send_cmds import (
+    EXIT_CMD,
     REQUEST_TSY_CUSIPS,
     REQUEST_FUT_CUSIPS,
     REQUEST_MBS_CUSIPS,
@@ -26,13 +27,14 @@ def main():
     logger.info("Requesting TSY")
     request_id = redis_que.submit_command(REQUEST_TSY_CUSIPS)
     print(f'treasury {request_id}')
-    logger.info("Requesting MBS")
-    request_id = redis_que.submit_command(REQUEST_MBS_CUSIPS)
-    print(f'mbs {request_id}')
-    logger.info("Requesting FUT")
-    request_id = redis_que.submit_command(REQUEST_FUT_CUSIPS)
-    print(f'fut {request_id}')
-    # after score commadnds are ordered lexigraphically so... lets update cmd to +1
+#    logger.info("Requesting MBS")
+#    request_id = redis_que.submit_command(REQUEST_MBS_CUSIPS)
+#    print(f'mbs {request_id}')
+#    logger.info("Requesting FUT")
+#    request_id = redis_que.submit_command(REQUEST_FUT_CUSIPS)
+#    print(f'fut {request_id}')
+#    request_id = redis_que.submit_command(EXIT_CMD)
+#    print(f'fut {request_id}')
 
 
 # *****************************************************

@@ -47,6 +47,9 @@ class BloombergDatabase:
             server=self.server, username=username, database=self.database
         )
 
+    def close(self):
+        self.db_connection.close()
+
     def save_bbg_request(
         self, request: BloombergRequest, title: str, status : str ='pending'
     ):

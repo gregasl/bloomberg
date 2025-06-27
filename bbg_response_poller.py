@@ -154,13 +154,20 @@ class BloombergResponsePoller:
         except Exception as e:
             logger.error(f"Polling error: {e}")
         finally:
-            self.stop_polling()
+            self.close()
 
     def stop_polling(self):
         """Stop the response polling loop"""
         self.is_running = False
         logger.info("Response polling stopped")
 
+    def close(self):
+        try:
+            self.redis_connection.close()
+            self.bbg_connection.close()
+            self.db_connection.close()
+        except Exception as e:
+            logger.error("Unable to exit gracefully {e}")
 
     def _poll_bbg_existing_requests(self):
         """Poll existing requests for responses"""

@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import orjson
 import logging
-from typing import Any, Optional
+from typing import Optional
 from ASL.utils.asl_redis import ASLRedis
 from bbg_request import BloombergRequest, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY, DEFAULT_CMD_PRIORITY, REQUEST_TYPE_CMD
 
@@ -40,6 +40,9 @@ class BloombergRedis:
     ## fill this out once I get it going
     def get_client(self) -> ASLRedis:
         return self.redis_client
+
+    def close(self):
+        self.redis_client.close()
     
     def queue_request(self, request: BloombergRequest) -> None:
         """Add request to Redis priority queue"""
@@ -83,10 +86,11 @@ class BloombergRedis:
         self.queue_request(bloomberg_request)
         return bloomberg_request.request_id
 
-    def get_request(self, _min : int = HIGH_CMD_PRIORITY, _max : int = LAST_CMD_PRIORITY) -> Optional[dict[any, any]]:
+    def get_request(self, _min : int = 0, _max : int = 0) -> Optional[dict[any, any]]:
         try:
+            logger.debug(f"getting {self.queue} {_min} {_max}")
             return self.redis_client.zrange(
-                        self.queue, _min, _max, withscores=True)
+                        self.queue, 0, 3, withscores=True)
         except Exception as e:
             logger.error(f"Error getting queued request from {REQUEST_QUEUE}: {e}")
             raise

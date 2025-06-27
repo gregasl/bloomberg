@@ -14,7 +14,6 @@ CREATE TABLE bloomberg_requests_archive (
     identifier NVARCHAR(100) NOT NULL,
     name NVARCHAR(64) NOT NULL,
     title NVARCHAR(64) NOT NULL,
-    payload NVARCHAR(4000) NULL,
     status NVARCHAR(20) NOT NULL,
     priority INT NOT NULL,
     response_id  NVARCHAR(50) NULL,

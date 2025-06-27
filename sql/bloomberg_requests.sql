@@ -13,7 +13,7 @@ CREATE TABLE bloomberg_requests (
     identifier NVARCHAR(100) NOT NULL,
     name NVARCHAR(64) NOT NULL,
     title NVARCHAR(64) NOT NULL,
-    payload NVARCHAR(4000)NULL,
+    payload NVARCHAR(MAX)NULL,
     status NVARCHAR(20) DEFAULT 'pending' NOT NULL  CONSTRAINT bbg_requests_status_check CHECK (status in ('pending', 'processing', 'submitted', 'completed')),
     priority INT DEFAULT 1 NOT NULL,
     response_id  NVARCHAR(50) NULL,

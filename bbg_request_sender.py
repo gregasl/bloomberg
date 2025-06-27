@@ -23,7 +23,7 @@ from bbg_send_cmds import (
     REQUEST_FUT_CUSIPS,
     REQUEST_MBS_CUSIPS,
 )
-from bbg_run_state import RunState
+from run_state import RunState
 
 from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase3_mbs_cusips
 
@@ -37,6 +37,7 @@ MAX_WAIT_TIME = 120 # 2 min
 logger = logging.getLogger(__name__)
 
 RunningState = RunState.INITIALIZING
+OnlyOneIssue = False
 
 class BloombergRequestSender:
     def __init__(
@@ -159,17 +160,16 @@ class BloombergRequestSender:
         count = 0
         sleep_time = MIN_WAIT_TIME
         RunningState = RunState.RUNNING
-        min_req_val = HIGH_CMD_PRIORITY
-        max_req_val = LAST_CMD_PRIORITY
+        min_req_val = 0
+        max_req_val = 0
 
-        while self._continue_processing(count):
+        try:
+          while self._continue_processing(count):
             try:
                 # Get highest priority request
                 count += 1
                 if (RunningState == RunState.RESUMING):
                     RunningState = RunState.RUNNING
-                    min_req_val = HIGH_CMD_PRIORITY
-                    max_req_val = LAST_CMD_PRIORITY
 
                 ## need to change the low and hi values to remove if paused.    
                 requests_data = self.redis_connection.get_request(min_req_val, max_req_val)
@@ -207,8 +207,6 @@ class BloombergRequestSender:
                     elif cmd == PAUSE_CMD:
                         RunningState = RunState.PAUSED
                         # only read 
-                        min_req_val = HIGH_CMD_PRIORITY
-                        max_req_val = HIGH_CMD_PRIORITY
                         self.redis_connection.remove_request(orig_request_json)
                         break
                     elif cmd == RESUME_CMD:
@@ -243,6 +241,10 @@ class BloombergRequestSender:
             except Exception as e:
                 logger.error(f"Error in request processing loop: {e}")
                 time.sleep(sleep_time)
+        except Exception as exc:
+            logger.error("Error in looping {exc}")
+        finally:
+            self.close()
 
     ## puts a data request on a redis queue to be processed.
     ## I thin it is too convoluted.  the queue is probably not needed .
@@ -340,7 +342,8 @@ class BloombergRequestSender:
         # Build universe from CUSIPs
         if not cusips:
             cusips = get_phase3_tsy_cusips()
-            cusips = cusips[:1]  # lets only play with 1 now
+            if (OnlyOneIssue):
+             cusips = cusips[:1]  # lets only play with 1 now
 
         variable_request_list: set[str] = sender.data_def.get_request_col_name_list(request_name, 0)
         static_request_list: set[str] = sender.data_def.get_request_col_name_list(request_name, 1)
@@ -392,7 +395,8 @@ class BloombergRequestSender:
         # Build universe from CUSIPs
         if not cusips:
             cusips = get_phase3_mbs_cusips()
-            cusips = cusips[:1]  # lets only play with 1 now
+            if (OnlyOneIssue):
+                cusips = cusips[:1]  # lets only play with 1 now
 
 
         if not fields:
@@ -443,7 +447,8 @@ class BloombergRequestSender:
         # Build universe from CUSIPs
         if not tickers:
             tickers = get_futures_tickers()
-            tickers = tickers[:1]  # lets only play with 1 now
+            if (OnlyOneIssue):
+                tickers = tickers[:1]  # lets only play with 1 now
 
         if not fields:
             fields: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
@@ -470,6 +475,13 @@ class BloombergRequestSender:
         )
         return request
 
+    def close(self):
+        try:
+            self.redis_connection.close()
+            self.bbg_connection.close()
+            self.db_connection.close()
+        except Exception as e:
+            logger.error("Unable to exit gracefully {e}")
 
 def setup_logging():
     logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs", useBusinessDateRollHandler=True)
@@ -479,16 +491,15 @@ def main():
     setup_logging()
     logger.info("Bloomberg Request Sender Starting")
     sender = BloombergRequestSender()
-    testing = False
-
-    if testing:
+    lclTesting = False
+   
+    if lclTesting:
        request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
-       print(f"Submitted Bloomberg request: {request_id}")
+       logger.info(f"Submitted Bloomberg request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
 
     sender.process_queued_requests()
-
 
 # *****************************************************
 #
