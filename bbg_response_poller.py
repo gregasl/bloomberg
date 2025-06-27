@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
-from bbg_redis import BloombergRedis
+from bbg_redis import BloombergRedis, RESPONSE_QUEUE
 
 # Attach logging
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class BloombergResponsePoller:
         )
 
         # Redis connection
-        self.redis_connection = BloombergRedis(redis_host=redis_host)
+        self.redis_connection = BloombergRedis(redis_host=redis_host, queue=RESPONSE_QUEUE)
 
         # Processing state
         self.is_running = False

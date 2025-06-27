@@ -340,7 +340,6 @@ class BloombergDatabase:
             returnVal : dict[str, dict[str, Any]] = {}
 
             for row in db_result:
-                print(row['request_name'])
                 returnVal[row['request_name']] = row
 
             return returnVal         

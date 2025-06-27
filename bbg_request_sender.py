@@ -11,27 +11,32 @@ from typing import Any, Tuple
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
 from bbg_redis import BloombergRedis, POLLING_QUEUE, REQUEST_QUEUE
-from bbg_request import BloombergRequest, DEFAULT_CMD_PRIORITY, DEFAULT_REQUEST_PRIORITY
+from bbg_request import BloombergRequest, DEFAULT_CMD_PRIORITY, DEFAULT_REQUEST_PRIORITY, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY 
 from bbg_request import LAST_CMD_PRIORITY, REQUEST_TYPE_CMD, REQUEST_TYPE_BBG_REQUEST
 from bloomberg_data_def import BloombergDataDef
 from bbg_send_cmds import (
     EXIT_CMD,
+    PAUSE_CMD,
+    RESUME_CMD,
     CLR_QUEUES,
     REQUEST_TSY_CUSIPS,
     REQUEST_FUT_CUSIPS,
     REQUEST_MBS_CUSIPS,
 )
+from bbg_run_state import RunState
+
 from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase3_mbs_cusips
 
 MAX_LOOPS = -1  # wait for exit...
 MIN_WAIT_TIME = 2
-MAX_WAIT_TIME = 20
+MAX_WAIT_TIME = 120 # 2 min
 ### NOTE THE STARTUP PARAMETERS NEED WORK - DB default user et. al.
 ## Just trying to get it running and tested
 
 # Attach logging
 logger = logging.getLogger(__name__)
 
+RunningState = RunState.INITIALIZING
 
 class BloombergRequestSender:
     def __init__(
@@ -113,8 +118,6 @@ class BloombergRequestSender:
     def _process_single_request(self, request_data: BloombergRequest):
         try:
             request_id = request_data.request_id
-            identifier = request_data.identifier
-            request_name = request_data.request_name
         except Exception as e:
             logger.error(f"Error processing request: {e}")
 
@@ -142,9 +145,9 @@ class BloombergRequestSender:
 
     ## *****************************************************
 
-    def _continue_processing(self, count: int, stop_processing: bool):
-        if stop_processing:
-            return not stop_processing
+    def _continue_processing(self, count: int):
+        if RunningState == RunState.CMD_DIE or RunningState == RunState.ERROR_DIE:
+            return False
 
         return (MAX_LOOPS <= 0) or (count < MAX_LOOPS)
 
@@ -155,15 +158,23 @@ class BloombergRequestSender:
         logger.info("Starting Bloomberg request processing loop...")
         count = 0
         sleep_time = MIN_WAIT_TIME
-        stop_processing = False
+        RunningState = RunState.RUNNING
+        min_req_val = HIGH_CMD_PRIORITY
+        max_req_val = LAST_CMD_PRIORITY
 
-        while self._continue_processing(count, stop_processing):
+        while self._continue_processing(count):
             try:
                 # Get highest priority request
                 count += 1
-                requests_data = self.redis_connection.get_sender_request()
+                if (RunningState == RunState.RESUMING):
+                    RunningState = RunState.RUNNING
+                    min_req_val = HIGH_CMD_PRIORITY
+                    max_req_val = LAST_CMD_PRIORITY
+
+                ## need to change the low and hi values to remove if paused.    
+                requests_data = self.redis_connection.get_request(min_req_val, max_req_val)
                 if (logger.getEffectiveLevel() <= logging.DEBUG):
-                    logger.debug("Looping...")
+                    logger.debug(f"Looping...{sleep_time}")
                     if (not requests_data):
                         logger.debug("Got NOTHING")
                     else:
@@ -171,11 +182,15 @@ class BloombergRequestSender:
 
                 if not requests_data:
                     time.sleep(sleep_time)
-                    sleep_time = sleep_time * 2
-                    sleep_time = (
-                        MAX_WAIT_TIME if (sleep_time > MAX_WAIT_TIME) else sleep_time
+                    new_sleep_time = sleep_time * 2
+                    new_sleep_time = (
+                        MAX_WAIT_TIME if (new_sleep_time > MAX_WAIT_TIME) else new_sleep_time
                     )
+                    if (new_sleep_time != sleep_time):
+                        sleep_time = new_sleep_time
                     continue
+                else:
+                    sleep_time = MIN_WAIT_TIME
 
                 for request_data in requests_data:
                     logger.debug(f"request from q {request_data}")
@@ -185,10 +200,21 @@ class BloombergRequestSender:
                     cmd = cmd.upper()
 
                     if cmd == EXIT_CMD:
-                        stop_processing = True
-                        self.redis_connection.remove_sender_request(orig_request_json)
+                        RunningState = RunState.CMD_DIE
+                        self.redis_connection.remove_request(orig_request_json)
                         # break the for loop...
                         break 
+                    elif cmd == PAUSE_CMD:
+                        RunningState = RunState.PAUSED
+                        # only read 
+                        min_req_val = HIGH_CMD_PRIORITY
+                        max_req_val = HIGH_CMD_PRIORITY
+                        self.redis_connection.remove_request(orig_request_json)
+                        break
+                    elif cmd == RESUME_CMD:
+                        RunningState = RunState.RESUMING
+                        self.redis_connection.remove_request(orig_request_json)
+                        break
                     else:  # process data commands
                         bbg_request : BloombergRequest = None
 
@@ -205,11 +231,11 @@ class BloombergRequestSender:
 
                         if (bbg_request):
                             self._process_single_request(bbg_request)
-                            self.redis_connection.remove_sender_request(orig_request_json)
+                            self.redis_connection.remove_request(orig_request_json)
                         elif orig_request_json:
                             bbg_request = BloombergRequest.create_from_json(orig_request_json)
                             self._process_single_request(bbg_request)
-                            self.redis_connection.remove_sender_request(orig_request_json)
+                            self.redis_connection.remove_request(orig_request_json)
                         else:
                             logger.info(f"On command {requests_data} no json was generated")
                             time.sleep(sleep_time)  # IDK about these sleeps
@@ -287,18 +313,7 @@ class BloombergRequestSender:
 
     ## ************************************************
 
-    def submit_command(self, cmd: str, priority=DEFAULT_CMD_PRIORITY):
-        bloomberg_request = BloombergRequest(
-            request_id=cmd,
-            identifier="",
-            request_name="TsyBondInfo",
-            request_payload="",
-            request_type=REQUEST_TYPE_CMD,
-            priority=priority,
-            max_retries=1,
-        )
-        self.redis_connection.queue_request_to_sender(bloomberg_request)
-        return bloomberg_request.request_id
+    
 
         
     def create_tsy_cusip_request(
@@ -345,7 +360,7 @@ class BloombergRequestSender:
         # Build field list
         field_list = {
             "@type": "DataFieldList",
-            "contains": [{"mnemonic": field} for field in fields],
+            "contains": [{"mnemonic": field} for field in static_request_list],
         }
 
         request: BloombergRequest = sender.create_data_request(
@@ -462,15 +477,15 @@ def setup_logging():
 
 def main():
     setup_logging()
-
+    logger.info("Bloomberg Request Sender Starting")
     sender = BloombergRequestSender()
-    testing = True
+    testing = False
 
     if testing:
-       request_id = sender.submit_command(REQUEST_MBS_CUSIPS)
+       request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
        print(f"Submitted Bloomberg request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
-       request_id = sender.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
+       request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
 
     sender.process_queued_requests()
 
