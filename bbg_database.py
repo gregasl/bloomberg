@@ -3,22 +3,24 @@ from datetime import timedelta
 import json  # for storing in db
 import os
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 import uuid
-from ASL import SQLObject
+from ASL.utils.asql import SQLObject
+# from ASL import SQLObject
 from bbg_request import BloombergRequest
 
 
 logger = logging.getLogger(__name__)
 ## may need to rename this.
 
+## TO DO - make status constants...
 
 class BloombergDatabase:
     def __init__(
         self,
         server: str = None,
         port: str = None,
-        database: str = 'XXXXX',
+        database: str = None,
         username: str = None,
     ):
         """
@@ -31,9 +33,9 @@ class BloombergDatabase:
             username:  If None defaults to Microsoft credentials
         """
 
-        self.server = server or os.environ.get("MSSQL_SERVER", "")
-        self.port = port or os.environ.get("MSSQL_TCP_PORT", "")
-        self.database = database or os.environ.get("MSSQL_DATABASE", "")
+        self.server = server or os.environ.get("BBG_SQL_SERVER", "")
+        self.port = port or os.environ.get("BBG_SQL_PORT", "")
+        self.database = database or os.environ.get("BBG_DATABASE", "")
         self.username = username
 
         if not all([self.server, self.port, self.database]):
@@ -94,6 +96,7 @@ class BloombergDatabase:
 
         except Exception as e:
             logger.error(f"Error updating request status: {e}")
+            raise
 
     def set_request_failed(self, request_id : str):
         self.update_request_status(request_id, 'failed')
@@ -113,6 +116,7 @@ class BloombergDatabase:
 
         except Exception as e:
             logger.error(f"Error updating submitted timestamp: {e}")
+            raise
 
     def update_response_poll(self, request_id: str):
         """Update response poll and timer in database"""
@@ -128,6 +132,7 @@ class BloombergDatabase:
 
         except Exception as e:
             logger.error(f"Error updating submitted timestamp: {e}")
+            raise
 
 
     def set_request_submitted(self, request_id):
@@ -182,20 +187,29 @@ class BloombergDatabase:
             - Any exceptions encountered at error level.
         """
         try:
-            query: str = f"""
-                    SELECT r.request_id, r.identifier, r.name, r.title, r.status, r.priority,
+            query: str = """SELECT r.request_id, r.identifier, r.name, r.title, r.status, r.priority,
                     r.request_retry_count, r.max_request_retries, r.submitted_at, r.response_poll_count, 
                     r.max_response_polls, r.last_poll_at, r.created_at, r.updated_at
                     FROM bloomberg_requests r
-                    WHERE r.request_id = {request_id}
-                """
+                    WHERE r.request_id = ?"""
             logger.info(query)
-            return_row = self.db_connection.fetch(query, "DICT")
+            params : tuple = (request_id)
+            return_row = self.db_connection.fetch(query, "DICT", params=params
+                                                  )
 
             return return_row
         except Exception as e:
             logger.error(f"Error getting request status: {e}")
             return None
+
+    # we return the row to save a re-call...
+    def is_request_ready(self, request_id: str) -> Tuple[bool, dict[str, Any]]:
+        rows : Optional[dict[str, Any]] = self.get_request_status(request_id)
+        if rows and len(rows) > 0:
+            row = rows[0]
+            return (row["status"] == 'completed', row)
+        
+        return (False, None)
 
     def get_active_polling_requests(self) -> list[dict[str, Any]]:
         """Retrieve all active polling requests from the 'bloomberg_requests' table.
@@ -305,6 +319,7 @@ class BloombergDatabase:
             )
         except Exception as e:
             logger.error(f"Error storing raw response: {e}")
+            raise
 
     def store_poll_error_response(
         self, request_id: str, error_message: str
@@ -330,6 +345,7 @@ class BloombergDatabase:
 
         except Exception as e:
             logger.error(f"Error updating poll count: {e}")
+            raise
 
     def get_request_definitions(self) -> dict[str, dict[str, Any]]:
         try:
@@ -347,7 +363,8 @@ class BloombergDatabase:
 
             return returnVal         
         except Exception as e:
-           logger.error(f"Error updating poll count: {e}")
+           logger.error(f"Error getting request definitions: {e}")
+           raise
 
 
     def get_last_date_for_request(self, request_name : str = None) -> dict[str, datetime.date]:
@@ -369,10 +386,32 @@ class BloombergDatabase:
                 query=query, params=params, commit=True
             )
         except Exception as e:
-           logger.error(f"Error updating poll count: {e}")
+           logger.error(f"Error getting last date for request: {e}")
+           raise
+
+    def get_column_definitions(request_name : str) -> list[dict[str, Any]]:
+        try:
+            query : str = """
+                    select cusip from bloomberg_data where  
+                    
+                    WHERE request_name = ? and business_date >= ?
+                """
+            params : tuple = (
+                    request_name,
+                    bdate,
+                )
+            logger.info(query + " " + request_name)
+            cusipLst : list[str] = self.db_connection.execute_param_query(
+                query=query, params=params, commit=True
+            )
+
+            return cusipLst
+          except Exception as e:
+            logger.error(f"ERROR Getting cusips for date: {e}")
 
 
-    def get_cusips_for_date(request_name : str, bdate : datetime.date = None) -> list [str]:
+
+    def get_cusips_for_date(self, request_name : str, bdate : datetime.date = None) -> list [str]:
           try:
             query : str = """
                     select cusip from bloomberg_data where  
@@ -383,13 +422,14 @@ class BloombergDatabase:
                     request_name,
                     bdate,
                 )
-            logger.info(query + " " + request_id)
-            self.db_connection.execute_param_query(
+            logger.info(query + " " + request_name)
+            cusipLst : list[str] = self.db_connection.execute_param_query(
                 query=query, params=params, commit=True
             )
 
+            return cusipLst
           except Exception as e:
-            logger.error(f"Error updating poll count: {e}")
+            logger.error(f"ERROR Getting cusips for date: {e}")
 
     def cleanup_old_requests(self, days_old: int = 7):
         """Clean up old completed/error requests"""

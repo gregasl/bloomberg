@@ -2,10 +2,7 @@
 import logging
 from ASL import ASL_Logging
 
-from bbg_redis import BloombergRedis, POLLING_QUEUE, REQUEST_QUEUE
-from bbg_request import BloombergRequest, DEFAULT_CMD_PRIORITY, DEFAULT_REQUEST_PRIORITY
-from bbg_request import LAST_CMD_PRIORITY, REQUEST_TYPE_CMD, REQUEST_TYPE_BBG_REQUEST
-from bloomberg_data_def import BloombergDataDef
+from bbg_redis import BloombergRedis
 from bbg_send_cmds import (
     EXIT_CMD,
     REQUEST_TSY_CUSIPS,

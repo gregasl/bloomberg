@@ -17,6 +17,7 @@ REQUEST_TYPE_BBG_REQUEST="BBG_REQUEST"
 class BloombergRequest:
     ## reuest id is a uuid for bbg the command for cmd type.
     request_type : str
+    request_cmd : str
     request_id: str  # on REQUEST TYPE CMD the command is there on BBG_REQUEST "BBG request_id?"
     identifier: str
     request_name : str

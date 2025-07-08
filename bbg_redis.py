@@ -1,6 +1,7 @@
 from datetime import datetime
 import orjson
 import logging
+import uuid
 from typing import Optional
 from ASL.utils.asl_redis import ASLRedis
 from bbg_request import BloombergRequest, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY, DEFAULT_CMD_PRIORITY, REQUEST_TYPE_CMD
@@ -8,15 +9,15 @@ from bbg_request import BloombergRequest, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY, 
 logger = logging.getLogger(__name__)
 ## may need to rename this.
 
-REQUEST_QUEUE = "BBG_API:req_q"
-RESPONSE_QUEUE = "BBG_API:resp_q"
-PROCESSING_SET = "BBG_API:processing"
-POLLING_QUEUE = "BBG_API:poll_q"
-PROCESSED_RESPONSES = "BBG_API:processed_responses"
-ERROR_QUEUE = "BBG_API:err_q"
-
 
 class BloombergRedis:
+    REQUEST_QUEUE = "BBG_API:req_q"
+    RESPONSE_QUEUE = "BBG_API:resp_q"
+    PROCESSING_SET = "BBG_API:processing"
+    POLLING_QUEUE = "BBG_API:poll_q"
+    PROCESSED_RESPONSES = "BBG_API:processed_responses"
+    ERROR_QUEUE = "BBG_API:err_q"
+
     def __init__(
         self,
         redis_host : str ="cacheuat",
@@ -51,6 +52,8 @@ class BloombergRedis:
         self.enqueue_counter += 1 # in case we queue 2 quicky...
         request_data = {
             "request_id": request.request_id,
+            "request_cmd": request.request_cmd,
+            "request_type": request.request_type,
             "identifier": request.identifier,
             "request_name" : request.request_name,
             "request_payload": request.request_payload,
@@ -70,12 +73,16 @@ class BloombergRedis:
                 self.queue, {orjson.dumps(request_data): add_priority} 
             )
         except Exception as e:
-            logger.error(f"Error queuing request to {REQUEST_QUEUE}: {e}")
+            logger.error(f"Error queuing request to {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
 
-    def submit_command(self, cmd: str, priority=DEFAULT_CMD_PRIORITY):
+    def submit_command(self, cmd: str, request_id : str = None, priority=DEFAULT_CMD_PRIORITY):
+        if request_id is None:
+            request_id = str(uuid.uuid4())
+
         bloomberg_request = BloombergRequest(
-            request_id=cmd,
+            request_cmd=cmd,
+            request_id=request_id,
             identifier="",
             request_name="",
             request_payload="",
@@ -92,20 +99,20 @@ class BloombergRedis:
             return self.redis_client.zrange(
                         self.queue, 0, 3, withscores=True)
         except Exception as e:
-            logger.error(f"Error getting queued request from {REQUEST_QUEUE}: {e}")
+            logger.error(f"Error getting queued request from {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
     
     def remove_request(self, json_request) -> None:
         try:
             self.redis_client.zrem(self.queue, json_request)
         except Exception as e:
-            logger.error(f"Error removing sender request from {REQUEST_QUEUE}: {e}")
+            logger.error(f"Error removing sender request from {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
 
     def clear_queue(self):
         try:
             self.redis_client.zremrangebyscore(self.queue, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY)
         except Exception as e:
-            logger.error(f"Error clearing out the queue {REQUEST_QUEUE}: {e}")
+            logger.error(f"Error clearing out the queue {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
     

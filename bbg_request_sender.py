@@ -1,7 +1,7 @@
 import json
-import orjson
 import time
 import uuid
+import os
 import logging
 from ASL import ASL_Logging
 # from ASL import ASL_DateRotatingFileHandler, ASL_RotatingFileHandler, ASL_TimedRotatingFileHandler
@@ -27,9 +27,7 @@ from run_state import RunState
 
 from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase3_mbs_cusips
 
-MAX_LOOPS = -1  # wait for exit...
-MIN_WAIT_TIME = 2
-MAX_WAIT_TIME = 120 # 2 min
+
 ### NOTE THE STARTUP PARAMETERS NEED WORK - DB default user et. al.
 ## Just trying to get it running and tested
 
@@ -37,15 +35,19 @@ MAX_WAIT_TIME = 120 # 2 min
 logger = logging.getLogger(__name__)
 
 RunningState = RunState.INITIALIZING
-OnlyOneIssue = False
+OnlyOneIssue = True
 
 class BloombergRequestSender:
+    MAX_LOOPS = -1  # wait for exit...
+    MIN_WAIT_TIME = 2
+    MAX_WAIT_TIME = 120 # 2 min
+
     def __init__(
         self,
-        redis_host: str = "cacheuat",
-        db_server: str = "asldb03",
-        db_port: str = "1433",
-        _database: str = "playdb",
+        redis_host: str = None,
+        db_server: str = None,
+        db_port: str = None,
+        _database: str = None,
         catalog=None,
         client_id=None,
         client_secret=None,
@@ -64,7 +66,10 @@ class BloombergRequestSender:
         """
 
         logger.info("Request Sender Initialization")
-        ## db connection
+        db_server = db_server or os.environ.get("BBG_SQL_SERVER", "")
+        db_port = db_port or os.environ.get("BBG_SQL_PORT", "")
+        _database = _database or os.environ.get("BBG_DATABASE", "")
+
         self.db_connection = BloombergDatabase(
             server=db_server, port=db_port, database=_database
         )
@@ -150,7 +155,7 @@ class BloombergRequestSender:
         if RunningState == RunState.CMD_DIE or RunningState == RunState.ERROR_DIE:
             return False
 
-        return (MAX_LOOPS <= 0) or (count < MAX_LOOPS)
+        return (BloombergRequestSender.MAX_LOOPS <= 0) or (count < BloombergRequestSender.MAX_LOOPS)
 
     ## *****************************************************
 
@@ -158,7 +163,7 @@ class BloombergRequestSender:
         """Main processing loop for sending requests"""
         logger.info("Starting Bloomberg request processing loop...")
         count = 0
-        sleep_time = MIN_WAIT_TIME
+        sleep_time = BloombergRequestSender.MIN_WAIT_TIME
         RunningState = RunState.RUNNING
         min_req_val = 0
         max_req_val = 0
@@ -184,19 +189,19 @@ class BloombergRequestSender:
                     time.sleep(sleep_time)
                     new_sleep_time = sleep_time * 2
                     new_sleep_time = (
-                        MAX_WAIT_TIME if (new_sleep_time > MAX_WAIT_TIME) else new_sleep_time
+                        BloombergRequestSender.MAX_WAIT_TIME if (new_sleep_time > BloombergRequestSender.MAX_WAIT_TIME) else new_sleep_time
                     )
                     if (new_sleep_time != sleep_time):
                         sleep_time = new_sleep_time
                     continue
                 else:
-                    sleep_time = MIN_WAIT_TIME
+                    sleep_time = BloombergRequestSender.MIN_WAIT_TIME
 
                 for request_data in requests_data:
                     logger.debug(f"request from q {request_data}")
                     orig_request_json, priority = request_data
                     request_dict: dict[str, Any] = json.loads(orig_request_json)
-                    cmd : str = request_dict['request_id']
+                    cmd : str = request_dict['request_cmd'] if request_dict['request_cmd'] is not None else ""
                     cmd = cmd.upper()
 
                     if cmd == EXIT_CMD:
@@ -217,11 +222,11 @@ class BloombergRequestSender:
                         bbg_request : BloombergRequest = None
 
                         if cmd == REQUEST_TSY_CUSIPS:
-                            bbg_request  = self.create_tsy_cusip_request()
+                            bbg_request  = self.create_tsy_cusip_request(request_id=request_dict['request_id'])
                         elif cmd == REQUEST_FUT_CUSIPS:
-                             bbg_request = self.create_futures_ticker_request()
+                             bbg_request = self.create_futures_ticker_request(request_id=request_dict['request_id'])
                         elif cmd == REQUEST_MBS_CUSIPS:
-                            bbg_request = self.create_mbs_cusip_request()  # self.submit_mbs_cusip_request()
+                            bbg_request = self.create_mbs_cusip_request(request_id=request_dict['request_id'])  # self.submit_mbs_cusip_request()
                         else: # otherwise we try to use the json here to do something
                             # this is now wokinh
                             if (orig_request_json):
@@ -256,6 +261,7 @@ class BloombergRequestSender:
         title: str,
         universe: dict[str, Any],
         field_list: dict[str, Any],
+        request_id : str = None,
         output_format: str = "text/csv",
         priority: int = DEFAULT_REQUEST_PRIORITY,
         max_retries: int = 3,
@@ -275,9 +281,11 @@ class BloombergRequestSender:
         Returns:
             request_id: Unique identifier for the request
         """
-        uid_str = str(uuid.uuid4())
-        request_id = uid_str
-        identifier = f"{request_name}{uid_str[:6]}"
+        if (request_id is None):
+            uid_str = str(uuid.uuid4())
+            request_id = uid_str
+
+        identifier = f"{request_name}{request_id[:6]}"
 
         # Build Bloomberg request payload
         request_payload = {
@@ -294,6 +302,7 @@ class BloombergRequestSender:
         bloomberg_request = BloombergRequest(
             request_id=request_id,
             request_type=REQUEST_TYPE_BBG_REQUEST,
+            request_cmd="",
             identifier=identifier,
             request_name=request_name,
             request_payload=request_payload,
@@ -315,13 +324,11 @@ class BloombergRequestSender:
 
     ## ************************************************
 
-    
-
-        
     def create_tsy_cusip_request(
         sender,
         cusips: list = None,
         fields: set[str] = None,
+        request_id : str = None,
         request_name: str = "TsyBondInfo",
         title: str = "Tsy Bond Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
@@ -366,8 +373,8 @@ class BloombergRequestSender:
             "contains": [{"mnemonic": field} for field in static_request_list],
         }
 
-        request: BloombergRequest = sender.create_data_request(
-            request_name, title, universe, field_list, priority=priority
+        request: BloombergRequest = sender.create_data_request( 
+            request_name, title, universe, field_list, request_id=request_id, priority=priority
         )
         return request
     
@@ -375,6 +382,7 @@ class BloombergRequestSender:
         sender,
         cusips: list = None,
         fields: list = None,
+        request_id : str = None,
         request_name: str = "MBSBondInfo",
         title: str = "MBS Bond Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
@@ -419,7 +427,7 @@ class BloombergRequestSender:
         }
 
         request: BloombergRequest = sender.create_data_request(
-            request_name, title, universe, field_list, priority=priority
+            request_name, title, universe, field_list, request_id = request_id, priority=priority
         )
         return request
     
@@ -427,6 +435,7 @@ class BloombergRequestSender:
         sender,
         tickers: list = None,
         fields: list = None,
+        request_id : str = None,
         request_name: str = "FuturesInfo",
         title: str = "Futures Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
@@ -471,7 +480,7 @@ class BloombergRequestSender:
         }
 
         request: BloombergRequest = sender.create_data_request(
-            request_name, title, universe, field_list, priority=priority
+            request_name, title, universe, field_list, request_id=request_id, priority=priority
         )
         return request
 
@@ -491,10 +500,10 @@ def main():
     setup_logging()
     logger.info("Bloomberg Request Sender Starting")
     sender = BloombergRequestSender()
-    lclTesting = False
+    lclTesting = True
    
     if lclTesting:
-       request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
+       request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
        logger.info(f"Submitted Bloomberg request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
