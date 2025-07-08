@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 from bbg_database import BloombergDatabase
 
 logger = logging.getLogger(__name__)
@@ -11,36 +11,25 @@ class BloombergDataDef :
         bbg_database : BloombergDatabase
     ):
         self.bbg_database : BloombergDatabase = bbg_database
-        self.data_defs : list[dict[str, Any]] = self.load_bbg_data_def()
+        ## assumes lists are sorted by col order in bbg_database (done locally)
+        self.data_defs : dict[str, list[dict[str, Any]]] = bbg_database.load_bbg_column_defs()
 
 
-    def load_bbg_data_def(self, ) -> list[dict[str, Any]]:
-        try:
-            query = """
-    select request_name, is_variable_data, suppress_sending, request_col_name, reply_col_name, col_order, data_type,
-    output_col_name, db_col_name 
-        FROM bloomberg_data_def where suppress_sending = 0
-                        """
-            def_data = self.bbg_database.db_connection.fetch(query, 'DICT')
-            return def_data
-        except Exception as e:
-            logger.error(f"Error updating request status: {e}")
-            raise
+    def get_columns(self, request_name : str) -> Optional[list[dict[str, Any]]]:
+        return self.data_defs[request_name]
 
-
-    def get_columns(self, request_name : str) -> list[dict[str, Any]]:
+    def _get_data_to_request_from_list(self, request_name_lst : list[dict[str, Any]], incl_static_data : bool) -> list[dict[str, Any]]:
         return_list : list[dict[str, Any]] = list(filter(lambda x: \
-                                     (x.get("request_name") == request_name), self.data_defs))
-        sorted(return_list, key=lambda i: i['col_order'])
+                            ((((x.get("request_col_name") != "ID")and
+                                (x.get("suppress_sending", 0) == 0))and((incl_static_data)or(x.get("is_variable_data"))))), \
+                                         request_name_lst))
         return return_list
 
     def get_data_to_request(self, request_name : str, incl_static_data : bool) -> list[dict[str, Any]]:
          # 
-         return_list : list[dict[str, Any]] = list(filter(lambda x: \
-                                     ((((x.get("request_name") == request_name)and(x.get("request_col_name") != "ID")and(x.get("suppress_sending", 0) == 0))and((incl_static_data)or(x.get("is_variable_data"))))), \
-                                         self.data_defs))
-         return return_list
-
+         request_name_lst : list[dict[str, Any]] = self.data_defs[request_name]
+         return self._get_data_to_request_from_list(request_name_lst, incl_static_data)
+        
     def get_request_col_name_list(self, request_name : str, incl_static_data) -> list[str]:
         return list(map(lambda x: x.get("request_col_name"), self.get_data_to_request(request_name, incl_static_data)))
         

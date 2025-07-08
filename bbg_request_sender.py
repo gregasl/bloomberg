@@ -10,7 +10,7 @@ from typing import Any, Tuple
 
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
-from bbg_redis import BloombergRedis, POLLING_QUEUE, REQUEST_QUEUE
+from bbg_redis import BloombergRedis
 from bbg_request import BloombergRequest, DEFAULT_CMD_PRIORITY, DEFAULT_REQUEST_PRIORITY, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY 
 from bbg_request import LAST_CMD_PRIORITY, REQUEST_TYPE_CMD, REQUEST_TYPE_BBG_REQUEST
 from bloomberg_data_def import BloombergDataDef
@@ -69,6 +69,7 @@ class BloombergRequestSender:
         db_server = db_server or os.environ.get("BBG_SQL_SERVER", "")
         db_port = db_port or os.environ.get("BBG_SQL_PORT", "")
         _database = _database or os.environ.get("BBG_DATABASE", "")
+        redis_host = redis_host or os.environ.get("REDIS_HOST", "")
 
         self.db_connection = BloombergDatabase(
             server=db_server, port=db_port, database=_database
@@ -165,8 +166,7 @@ class BloombergRequestSender:
         count = 0
         sleep_time = BloombergRequestSender.MIN_WAIT_TIME
         RunningState = RunState.RUNNING
-        min_req_val = 0
-        max_req_val = 0
+        max_items = 1
 
         try:
           while self._continue_processing(count):
@@ -177,7 +177,7 @@ class BloombergRequestSender:
                     RunningState = RunState.RUNNING
 
                 ## need to change the low and hi values to remove if paused.    
-                requests_data = self.redis_connection.get_request(min_req_val, max_req_val)
+                requests_data = self.redis_connection.get_request(max_items)
                 if (logger.getEffectiveLevel() <= logging.DEBUG):
                     logger.debug(f"Looping...{sleep_time}")
                     if (not requests_data):
@@ -500,7 +500,7 @@ def main():
     setup_logging()
     logger.info("Bloomberg Request Sender Starting")
     sender = BloombergRequestSender()
-    lclTesting = True
+    lclTesting = False
    
     if lclTesting:
        request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)

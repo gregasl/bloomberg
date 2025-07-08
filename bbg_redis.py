@@ -93,11 +93,10 @@ class BloombergRedis:
         self.queue_request(bloomberg_request)
         return bloomberg_request.request_id
 
-    def get_request(self, _min : int = 0, _max : int = 0) -> Optional[dict[any, any]]:
+    def get_request(self, max_items : int = 3) -> Optional[dict[any, any]]:
         try:
-            logger.debug(f"getting {self.queue} {_min} {_max}")
             return self.redis_client.zrange(
-                        self.queue, 0, 3, withscores=True)
+                        self.queue, 0, max_items - 1, withscores=True)
         except Exception as e:
             logger.error(f"Error getting queued request from {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
@@ -115,4 +114,7 @@ class BloombergRedis:
         except Exception as e:
             logger.error(f"Error clearing out the queue {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
+
+    def set_queue_name(self, queue_name : str):
+        self.queue = queue_name
     

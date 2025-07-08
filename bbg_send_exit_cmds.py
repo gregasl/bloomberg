@@ -22,8 +22,10 @@ def main():
     logger.info("Bloomberg CMD Sender Starting")
 
     #logger.info("Requesting TSY")
-    equest_id = redis_que.submit_command(REQUEST_TSY_CUSIPS)
-    print(f'treasury {request_id}')
+    #equest_id = redis_que.submit_command(REQUEST_TSY_CUSIPS)
+    #print(f'treasury {request_id}')
+    request_id = redis_que.submit_command(EXIT_CMD)
+    redis_que.set_queue_name(BloombergRedis.POLLING_QUEUE)
     request_id = redis_que.submit_command(EXIT_CMD)
 #    logger.info("Requesting MBS")
 #    request_id = redis_que.submit_command(REQUEST_MBS_CUSIPS)

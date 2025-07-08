@@ -1,5 +1,7 @@
+import json
 import re
 import time
+import os
 import orjson
 import logging
 from ASL import ASL_Logging
@@ -7,9 +9,12 @@ from ASL.utils.asl_rotating_handlers import ASL_DateRotatingFileHandler
 from datetime import datetime
 from typing import Any, Callable
 
+from bbg_request import BloombergRequest
 from bbg_rest_connection import BloombergRestConnection
 from bbg_database import BloombergDatabase
-from bbg_redis import BloombergRedis, RESPONSE_QUEUE
+from bbg_redis import BloombergRedis
+from bbg_send_cmds import EXIT_CMD
+from run_state import RunState
 
 # Attach logging
 logger = logging.getLogger(__name__)
@@ -21,10 +26,10 @@ def _content_type_match(content_type, match_str):
 class BloombergResponsePoller:
     def __init__(
         self,
-        redis_host: str = "cacheuat",
-        db_server: str = "asldb03",
-        db_port: str = "1433",
-        _database: str = "playdb",
+        redis_host: str = None,
+        db_server: str = None,
+        db_port: str = None,
+        _database: str = None,
         catalog=None,
         client_id=None,
         client_secret=None,
@@ -42,6 +47,10 @@ class BloombergResponsePoller:
             client_secret: Bloomberg OAuth2 client secret
         """
 
+        db_server = db_server or os.environ.get("BBG_SQL_SERVER", "")
+        db_port = db_port or os.environ.get("BBG_SQL_PORT", "")
+        _database = _database or os.environ.get("BBG_DATABASE", "")
+        redis_host = redis_host or os.environ.get("REDIS_HOST", "")
         # SQL Server connection
         self.db_connection = BloombergDatabase(
             server=db_server, port=db_port, database=_database
@@ -55,7 +64,7 @@ class BloombergResponsePoller:
         )
 
         # Redis connection
-        self.redis_connection = BloombergRedis(redis_host=redis_host, queue=RESPONSE_QUEUE)
+        self.redis_connection = BloombergRedis(redis_host=redis_host, queue=BloombergRedis.RESPONSE_QUEUE)
 
         # Processing state
         self.is_running = False
@@ -139,6 +148,23 @@ class BloombergResponsePoller:
         self.bbg_connection.register_handler(name=name, condition=condition, handler=handler)
 
 
+    def process_redis_requests(self, max_items : int = 1):
+        requests_data : list[BloombergRequest] = self.redis_connection.get_request(max_items)
+
+        for request_data in requests_data:
+            orig_request_json, priority = request_data
+            request_dict: dict[str, Any] = json.loads(orig_request_json)
+            cmd : str = request_dict['request_cmd'] if request_dict['request_cmd'] is not None else ""
+            cmd = cmd.upper()
+
+            if cmd == EXIT_CMD:
+                RunningState = RunState.CMD_DIE
+                self.is_running = False
+                self.redis_connection.remove_request(orig_request_json)
+                # break the for loop...
+                break 
+
+        
     def start_polling(self):
         """Start the response polling loop"""
         self.is_running = True
@@ -177,7 +203,8 @@ class BloombergResponsePoller:
 
             for request in active_requests:
                 self.bbg_connection.poll_single_request(request)
-
+                
+            self.process_redis_requests(1)  # exit command and more later.
         except Exception as e:
             logger.error(f"Error polling existing requests: {e}")
          

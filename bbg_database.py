@@ -9,7 +9,6 @@ from ASL.utils.asql import SQLObject
 # from ASL import SQLObject
 from bbg_request import BloombergRequest
 
-
 logger = logging.getLogger(__name__)
 ## may need to rename this.
 
@@ -389,33 +388,40 @@ class BloombergDatabase:
            logger.error(f"Error getting last date for request: {e}")
            raise
 
-    def get_column_definitions(request_name : str) -> list[dict[str, Any]]:
+    def _sort_columns(self, in_list : list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return(sorted(in_list, key=lambda i: i['col_order']))
+
+    def load_bbg_column_defs(self, request_name : str = None) -> dict[str, list[dict[str, Any]]]:
         try:
-            query : str = """
-                    select cusip from bloomberg_data where  
-                    
-                    WHERE request_name = ? and business_date >= ?
-                """
-            params : tuple = (
-                    request_name,
-                    bdate,
-                )
-            logger.info(query + " " + request_name)
-            cusipLst : list[str] = self.db_connection.execute_param_query(
-                query=query, params=params, commit=True
-            )
+            query = """select request_name, is_variable_data, suppress_sending, request_col_name, reply_col_name, col_order, data_type,
+    output_col_name, db_col_name 
+        FROM bloomberg_data_def where suppress_sending = 0 """
+            if request_name is not None:
+                query = query + f'and request_name = {request_name}'
 
-            return cusipLst
-          except Exception as e:
-            logger.error(f"ERROR Getting cusips for date: {e}")
+            loaded_data = self.db_connection.fetch(query, 'DICT')
+            def_data : dict[str, list[dict[str, Any]]] = {}
 
+            for row in loaded_data:
+                if row['request_name'] in def_data:
+                    def_data[row['request_name']].append(row)
+                else:
+                    def_data[row['request_name']] = [row]                    
+
+            for req_name in def_data:
+                tmp_list =  self._sort_columns(def_data[req_name])
+                def_data[req_name] = tmp_list # only for debugging - remove later
+
+            return def_data
+        except Exception as e:
+            logger.error(f"Error updating request status: {e}")
+            raise
 
 
     def get_cusips_for_date(self, request_name : str, bdate : datetime.date = None) -> list [str]:
           try:
             query : str = """
                     select cusip from bloomberg_data where  
-                    
                     WHERE request_name = ? and business_date >= ?
                 """
             params : tuple = (
