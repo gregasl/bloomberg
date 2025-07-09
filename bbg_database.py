@@ -387,6 +387,23 @@ class BloombergDatabase:
         except Exception as e:
            logger.error(f"Error getting last date for request: {e}")
            raise
+    
+    def get_data_content(self, request_id: str) -> Tuple[str, str]:
+        query = f"select data_type, data_content from bloomberg_data where request_id = '{request_id}'"
+
+        logger.info(query)
+        try:
+            rows : list[dict[str, Any]] = self.db_connection.execute_query(query=query, commit=True)
+            if (rows and len(rows) > 0):
+                row = rows[0]
+                return (row['data_type'], row['data_content'])  # this is a whole file might be an issue.
+            else:
+                return (None, None)
+        except Exception as e:
+            logger.error(f"Unable to load data for {request_id}")
+            raise
+
+
 
     def _sort_columns(self, in_list : list[dict[str, Any]]) -> list[dict[str, Any]]:
         return(sorted(in_list, key=lambda i: i['col_order']))
@@ -395,7 +412,7 @@ class BloombergDatabase:
         try:
             query = """select request_name, is_variable_data, suppress_sending, request_col_name, reply_col_name, col_order, data_type,
     output_col_name, db_col_name 
-        FROM bloomberg_data_def where suppress_sending = 0 """
+    FROM bloomberg_data_def where suppress_sending = 0 """
             if request_name is not None:
                 query = query + f'and request_name = {request_name}'
 

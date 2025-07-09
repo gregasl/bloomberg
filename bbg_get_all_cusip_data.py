@@ -6,6 +6,7 @@ from ASL import ASL_Logging
 
 from bbg_redis import BloombergRedis
 from bbg_database import BloombergDatabase
+from bloomberg_data_def import BloombergDataDef
 
 from bbg_send_cmds import (
     EXIT_CMD,
@@ -21,20 +22,28 @@ def setup_logging():
     logger = ASL_Logging(log_file="bbg_get_all_cusips", log_path="./logs", useBusinessDateRollHandler=True)
 
 
+def write_data(bbgdb : BloombergDatabase, request_def : dict[str, Any], request_status : dict[str, Any]):
+    data_type, data_content  = bbgdb.get_data_content(request_status['request_id'])
+    pass
 
-def output_request(bbgdb, request_definitions : dict[str, dict[str, any]], request_id):
+
+def output_request(bbgdb : BloombergDatabase, request_definitions : dict[str, dict[str, any]], request_id):
     is_ready, request_status = bbgdb.is_request_ready(request_id)
+
     if is_ready:
         request_def : dict[str, Any] = request_definitions[request_status['name']]
-        write_data(request_def, request_status)
+        write_data(bbgdb, request_def, request_status)
         logger.info(f"its ready {request_id}")
 
+
 def process_request_ids(request_ids : list[UUID]):
-    bbgdb = BloombergDatabase()
-    
+    bbgdb : BloombergDatabase = BloombergDatabase()
+    bbgDataDef = BloombergDataDef(bbgdb)
+
     request_definitions : dict[str, dict[str, any]] = bbgdb.get_request_definitions()
     for request_id in request_ids:
         output_request(bbgdb, request_definitions, request_id)
+
 
 def main():
     setup_logging()

@@ -173,7 +173,9 @@ class BloombergResponsePoller:
         try:
             while self.is_running:
                 self._poll_bbg_existing_requests()
-                time.sleep(self.poll_interval)
+
+                if (self.is_running):
+                    time.sleep(self.poll_interval)
 
         except KeyboardInterrupt:
             logger.info("Polling interrupted by user")

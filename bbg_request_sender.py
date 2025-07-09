@@ -152,7 +152,7 @@ class BloombergRequestSender:
 
     ## *****************************************************
 
-    def _continue_processing(self, count: int):
+    def _continue_processing(self, RunningState, count: int):
         if RunningState == RunState.CMD_DIE or RunningState == RunState.ERROR_DIE:
             return False
 
@@ -169,7 +169,7 @@ class BloombergRequestSender:
         max_items = 1
 
         try:
-          while self._continue_processing(count):
+          while self._continue_processing(RunningState, count):
             try:
                 # Get highest priority request
                 count += 1

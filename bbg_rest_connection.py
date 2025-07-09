@@ -102,8 +102,11 @@ class BloombergRestConnection:
         # Could store updated token in database if needed
         return token
 
-    def set_db_connection(self, _db_connection: BloombergDatabase):
+    def set_db_connection(self, _db_connection: BloombergDatabase) -> None:
         self.db_connection = _db_connection
+
+    def close(self) -> None:
+        self.session.close()
 
     def submit_to_bloomberg(self, bbg_request: BloombergRequest) -> Any:
         """Submit request to Bloomberg Data License API"""
