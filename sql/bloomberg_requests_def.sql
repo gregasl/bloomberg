@@ -1,7 +1,7 @@
 use playdb
 go
 
-IF EXISTS (SELECT * FROM sysobjects WHERE name='bloomberg_requests' AND xtype='U')
+IF EXISTS (SELECT * FROM sysobjects WHERE name='bloomberg_requests_def' AND xtype='U')
 begin
     drop table bloomberg_requests_def
 end
@@ -14,6 +14,7 @@ CREATE TABLE bloomberg_requests_def (
     priority INT DEFAULT 4 NOT NULL,
     save_table NVARCHAR(128) NULL,
     save_file NVARCHAR(512) NULL,
+    raw_file NVARCHAR(512) NULL,
     retry_wait_sec INT DEFAULT 120 NOT NULL,
     max_request_retries INT DEFAULT 5 NOT NULL,
     response_poll_wait_sec INT DEFAULT 30 NOT NULL,

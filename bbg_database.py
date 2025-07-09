@@ -348,7 +348,7 @@ class BloombergDatabase:
 
     def get_request_definitions(self) -> dict[str, dict[str, Any]]:
         try:
-            query : str = """select request_name, request_title, priority, save_table, save_file,
+            query : str = """select request_name, request_title, priority, save_table, save_file, raw_file,
             retry_wait_sec, max_request_retries, response_poll_wait_sec, max_response_polls
             from bloomberg_requests_def
             """
@@ -393,7 +393,7 @@ class BloombergDatabase:
 
         logger.info(query)
         try:
-            rows : list[dict[str, Any]] = self.db_connection.execute_query(query=query, commit=True)
+            rows : list[dict[str, Any]] = self.db_connection.fetch(query=query, out_type='DICT')
             if (rows and len(rows) > 0):
                 row = rows[0]
                 return (row['data_type'], row['data_content'])  # this is a whole file might be an issue.
