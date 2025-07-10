@@ -36,7 +36,7 @@ class BloombergRequest:
     @staticmethod
     def create_from_json(inJSON : str):
         tmp_dict = json.loads(inJSON)
-        bbgRequest = BloombergRequest("RT", "RI", "ID", "RN")
+        bbgRequest = BloombergRequest("RT", "RC", "RI", "ID", "RN")
         for key, value in tmp_dict.items():
             bbgRequest.__dict__[key] = value 
 

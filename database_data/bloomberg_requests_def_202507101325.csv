@@ -1,0 +1,4 @@
+"request_name","request_title","priority","save_table","save_file","raw_file","retry_wait_sec","max_request_retries","response_poll_wait_sec","max_response_polls","ts"
+FuturesInfo,Request Futures Info,4,bloomberg_fut_sec_data,bloomberg_fut_sec_data.csv,bloomberg_fut_sec_data.txt,120,5,30,120,2025-07-10 13:23:35.766
+MBSBondInfo,Request MBS Info,4,bloomberg_mbs_sec_data,bloomberg_mbs_sec_data.csv,bloomberg_mbs_sec_data.txt,120,5,30,120,2025-07-10 13:19:55.973
+TsyBondInfo,Request Tsy Info,4,bloomberg_tsy_sec_data,bloomberg_tsy_sec_data.csv,bloomberg_tsy_sec_data.txt,120,5,30,120,2025-07-10 13:18:46.226

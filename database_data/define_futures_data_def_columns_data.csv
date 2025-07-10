@@ -1,0 +1,6 @@
+request_name,is_variable_data,suppress_sending,request_col_name,reply_col_name,col_order,data_type,output_col_name,db_col_name
+FuturesInfo,0,0,ID,TICKER,1,TEXT,TICKER,ticker
+FuturesInfo,0,0,FUT_DLV_DT_FIRST,FUT_DLV_DT_FIRST,2,DATE,FUT_DLV_DT_FIRST,first_delivery_date
+FuturesInfo,0,0,FUT_DLV_DT_LAST,FUT_DLV_DT_LAST,3,TEXT,FUT_DLV_DT_LAST,last_delivery_date
+FuturesInfo,0,0,CTD,CTD,4,TEXT,CTD,ctd
+FuturesInfo,0,0,FUT_DLVRBLE_BNDS_CUSIPS,FUT_DLVRBLE_BNDS_CUSIPS,5,TEXT,FUT_DLVRBLE_BNDS_CUSIPS,deliverable_cusip_list

@@ -176,7 +176,7 @@ def main():
 
     logger.info("Requesting TSY")
     request_ids = []
-    # request_id = redis_que.submit_command(REQUEST_TSY_CUSIPS)
+    request_id = redis_que.submit_command(REQUEST_TSY_CUSIPS)
     request_id = "5ace4cc1-47cd-47fb-986c-4b14cbd13ad8"
     request_ids.append(request_id)
     print(f'treasury {request_id}')

@@ -147,7 +147,7 @@ class BloombergDatabase:
         try:
             response_id = str(uuid.uuid4())
             query: str = (
-                "UPDATE bloomberg_requests SET response_id = ?, response = ?, response_status = ? WHERE request_id = ?"
+                "UPDATE bloomberg_requests SET response_id = ?, response = ?, processed_status = ? WHERE request_id = ?"
             )
             params: tuple = (response_id, msg, status, request_id)
             logger.info(query)
@@ -161,30 +161,25 @@ class BloombergDatabase:
 
     def store_error_response(self, request_id: str, error_message: str):
         """
-        Stores an error response associated with a given request ID in the database.
-
+        Stores an error response for a given request.
         Args:
-            request_id (str): The unique identifier for the request that resulted in an error.
+            request_id (str): The unique identifier for the request.
             error_message (str): The error message to be stored.
-
-        Raises:
-            Exception: Logs any exceptions that occur during the database operation.
+        This method records an error response associated with the specified request ID by delegating to the `store_response` method with a status of 'error'.
         """
         self.store_response(request_id=request_id, msg=error_message, status='error')
 
+
     def get_request_status(self, request_id: str) -> Optional[dict[str, Any]]:
-        """Retrieve the status and related information for a specific Bloomberg request.
-        Args:
-            request_id (str): The unique identifier of the request to retrieve.
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary containing the request and response details if found,
-            otherwise None. The dictionary includes fields from both the 'bloomberg_requests' and
-            'bloomberg_responses' tables, such as status_code, response_data, error_message, and
-            snapshot_timestamp.
-        Logs:
-            - The executed SQL query at info level.
-            - Any exceptions encountered at error level.
         """
+        Retrieves the status of a Bloomberg request by its request ID.
+        Args:
+            request_id (str): The unique identifier of the request.
+        Returns:
+            Optional[dict[str, Any]]: A dictionary containing the request status and related fields if found,
+            otherwise None.
+        """
+      
         try:
             query: str = """SELECT r.request_id, r.identifier, r.name, r.title, r.status, r.priority,
                     r.request_retry_count, r.max_request_retries, r.submitted_at, r.response_poll_count, 
@@ -193,8 +188,7 @@ class BloombergDatabase:
                     WHERE r.request_id = ?"""
             logger.info(query)
             params : tuple = (request_id)
-            return_row = self.db_connection.fetch(query, "DICT", params=params
-                                                  )
+            return_row = self.db_connection.fetch(query, "DICT", params=params)
 
             return return_row
         except Exception as e:

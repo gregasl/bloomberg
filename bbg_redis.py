@@ -76,7 +76,7 @@ class BloombergRedis:
             logger.error(f"Error queuing request to {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
 
-    def submit_command(self, cmd: str, request_id : str = None, priority=DEFAULT_CMD_PRIORITY):
+    def submit_command(self, cmd: str, request_id : str = None, priority=DEFAULT_CMD_PRIORITY) -> str:
         if request_id is None:
             request_id = str(uuid.uuid4())
 
@@ -108,7 +108,7 @@ class BloombergRedis:
             logger.error(f"Error removing sender request from {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
 
-    def clear_queue(self):
+    def clear_queue(self) -> None:
         try:
             self.redis_client.zremrangebyscore(self.queue, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY)
         except Exception as e:

@@ -4,8 +4,9 @@ import time
 import os
 import orjson
 import logging
-from ASL import ASL_Logging
-from ASL.utils.asl_rotating_handlers import ASL_DateRotatingFileHandler
+import sys
+
+from ASL.utils.asl_logging import ASL_Logging
 from datetime import datetime
 from typing import Any, Callable
 
@@ -164,15 +165,18 @@ class BloombergResponsePoller:
                 # break the for loop...
                 break 
 
-        
-    def start_polling(self):
+    # run til complete once all pending are resolved exit..
+    def start_polling(self, run_til_complete : bool = False):
         """Start the response polling loop"""
         self.is_running = True
         logger.info("Starting Bloomberg response polling...")
 
         try:
             while self.is_running:
-                self._poll_bbg_existing_requests()
+                cnt = self._poll_bbg_existing_requests()
+
+                if ((cnt == 0)and(run_til_complete)):
+                    self.is_running = False
 
                 if (self.is_running):
                     time.sleep(self.poll_interval)
@@ -197,7 +201,7 @@ class BloombergResponsePoller:
         except Exception as e:
             logger.error("Unable to exit gracefully {e}")
 
-    def _poll_bbg_existing_requests(self):
+    def _poll_bbg_existing_requests(self) -> int:
         """Poll existing requests for responses"""
         try:
             # Get all active polling requests
@@ -207,6 +211,7 @@ class BloombergResponsePoller:
                 self.bbg_connection.poll_single_request(request)
                 
             self.process_redis_requests(1)  # exit command and more later.
+            return len(active_requests)
         except Exception as e:
             logger.error(f"Error polling existing requests: {e}")
          
@@ -305,13 +310,18 @@ class BloombergResponsePoller:
         except Exception as e:
             logger.error(f"Error handling polling error: {e}")
 
-
+ 
 def setup_logging():
  ## setup logging --
-    asl_logger = ASL_Logging(log_file="bbg_request_receiver.log", log_path="./logs", useBusinessDateRollHandler=True)
+    log_path = os.environ.get('LOG_DIR', "./output")
+    asl_logger = ASL_Logging(log_file="bbg_request_receiver.log", log_path=log_path, useBusinessDateRollHandler=True)
 
 def main():
     try:
+        for arg in sys.argv:
+            if arg == "run_to_complete":
+                run_until_complete = True
+
         setup_logging()
         # Initialize poller
         poller = BloombergResponsePoller()

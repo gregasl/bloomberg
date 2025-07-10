@@ -95,8 +95,8 @@ class BloombergRequestSender:
     ):
         """Handle failed request with retry logic"""
         request_id = request_data.request_id
-        retry_count = request_data.get("request_retry_count", 0)
-        max_retries = request_data.get("max_request_retries", 3)
+        retry_count = request_data["retry_count"]
+        max_retries = request_data["max_retries"]
 
         if retry_count < max_retries:
             # Retry the request
@@ -202,19 +202,19 @@ class BloombergRequestSender:
                     orig_request_json, priority = request_data
                     request_dict: dict[str, Any] = json.loads(orig_request_json)
                     cmd : str = request_dict['request_cmd'] if request_dict['request_cmd'] is not None else ""
-                    cmd = cmd.upper()
+                    cmd_upper = cmd.upper()
 
-                    if cmd == EXIT_CMD:
+                    if cmd_upper == EXIT_CMD:
                         RunningState = RunState.CMD_DIE
                         self.redis_connection.remove_request(orig_request_json)
                         # break the for loop...
                         break 
-                    elif cmd == PAUSE_CMD:
+                    elif cmd_upper == PAUSE_CMD:
                         RunningState = RunState.PAUSED
                         # only read 
                         self.redis_connection.remove_request(orig_request_json)
                         break
-                    elif cmd == RESUME_CMD:
+                    elif cmd_upper == RESUME_CMD:
                         RunningState = RunState.RESUMING
                         self.redis_connection.remove_request(orig_request_json)
                         break
@@ -493,7 +493,8 @@ class BloombergRequestSender:
             logger.error("Unable to exit gracefully {e}")
 
 def setup_logging():
-    logger = ASL_Logging(log_file="bbg_request_sender.log", log_path="./logs", useBusinessDateRollHandler=True)
+    log_path = os.environ.get('LOG_DIR', "./output")
+    logger = ASL_Logging(log_file="bbg_request_sender.log", log_path=log_path, useBusinessDateRollHandler=True)
 
 
 def main():
