@@ -20,4 +20,4 @@ $env:POLL_INTERVAL=15  # seconds between polls
 $env:MAX_RETRIES=20    # max retries before marking as failed
 $env:BATCH_SIZE=10     # max requests to process per iteration
 
-# pip install redis pyodbc oauthlib requests-oauthlib
+# pip install redis pyodbc oauthlib requests-oauthlib pandas numpy O365 orjson
