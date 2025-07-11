@@ -3,7 +3,9 @@ import time
 import uuid
 import os
 import logging
-from ASL import ASL_Logging
+from ASL.utils.asl_logging import ASL_Logging
+# from asl_logging import ASL_Logging
+
 # from ASL import ASL_DateRotatingFileHandler, ASL_RotatingFileHandler, ASL_TimedRotatingFileHandler
 
 from typing import Any, Tuple
@@ -494,8 +496,8 @@ class BloombergRequestSender:
 
 def setup_logging():
     log_path = os.environ.get('LOG_DIR', "./output")
-    logger = ASL_Logging(log_file="bbg_request_sender.log", log_path=log_path, useBusinessDateRollHandler=True)
-
+    logger = ASL_Logging(log_file="bbg_request_sender.log", log_path=log_path, use_stream_output=True, useBusinessDateRollHandler=True)
+    # logger.setLogLevel(logging.INFO)
 
 def main():
     setup_logging()
@@ -509,7 +511,7 @@ def main():
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
 
-    sender.process_queued_requests()
+    # sender.process_queued_requests()
 
 # *****************************************************
 #

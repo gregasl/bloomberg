@@ -23,7 +23,7 @@ from bbg_send_cmds import (
 logger = logging.getLogger(__name__)
 
 def setup_logging():
-    logger = ASL_Logging(log_file="bbg_get_all_cusips", log_path="./logs", useBusinessDateRollHandler=True)
+    logger = ASL_Logging(log_file="bbg_get_all_cusips", log_path="./output", use_log_header=True, useBusinessDateRollHandler=True)
 
 def _convert_csv_to_dict(in_data_content : str) -> list[dict[str, Any]]:
     csv_imitation_file = io.StringIO(in_data_content)

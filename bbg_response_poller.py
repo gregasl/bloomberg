@@ -314,7 +314,7 @@ class BloombergResponsePoller:
 def setup_logging():
  ## setup logging --
     log_path = os.environ.get('LOG_DIR', "./output")
-    asl_logger = ASL_Logging(log_file="bbg_request_receiver.log", log_path=log_path, useBusinessDateRollHandler=True)
+    asl_logger = ASL_Logging(log_file="bbg_response_poller.log", log_path=log_path, use_stream_output=True, useBusinessDateRollHandler=True)
 
 def main():
     try:
