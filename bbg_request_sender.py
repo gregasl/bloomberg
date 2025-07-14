@@ -2,6 +2,7 @@ import json
 import time
 import uuid
 import os
+import sys
 import logging
 from ASL.utils.asl_logging import ASL_Logging
 # from asl_logging import ASL_Logging
@@ -503,19 +504,34 @@ def main():
     setup_logging()
     logger.info("Bloomberg Request Sender Starting")
     sender = BloombergRequestSender()
-    lclTesting = False
+    run_cusips = False
+
+    for arg in sys.argv[1:]:
+        logger.debug(f"arg is {arg}")
+        if arg == "run_cusips":
+                run_cusips = True
    
-    if lclTesting:
-       request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
-       logger.info(f"Submitted Bloomberg request: {request_id}")
+    if run_cusips:
+       request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
+       logger.info(f"Submitted Bloomberg TSY request: {request_id}")
+    #    request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
+    #    logger.info(f"Submitted Bloomberg MBS request: {request_id}")
+    #    request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
+    #    logger.info(f"Submitted Bloomberg FUT request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
+       logger.info(f"Sent EXIT!")
 
-    # sender.process_queued_requests()
+    sender.process_queued_requests()
 
 # *****************************************************
 #
 #  MAIN MAIN
 # *********************************************************
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        exit(0)  # cape may...:)
+    except Exception as e:
+      logger.critical(f"Errored out uncaught exception {e}")
+      exit(1)

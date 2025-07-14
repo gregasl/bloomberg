@@ -222,6 +222,25 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error getting active polling requests: {e}")
             return []
+        
+    def get_active_polling_requests(self) -> list[dict[str, Any]]:
+        """Retrieve all active polling requests from the 'bloomberg_requests' table.
+        Returns:
+            list[dict[str, Any]]: A list of dictionaries, each representing a request that is currently being polled
+            (i.e., has status 'polling' and poll_count less than max_polls). Returns an empty list if an error occurs.
+        """
+        try:
+            query: str = """
+                SELECT request_id, identifier, response_poll_count, max_response_polls
+                FROM bloomberg_requests
+                WHERE status = 'submitted' and response_poll_count < max_response_polls
+            """
+            logger.info(query)
+            return self.db_connection.fetch(query, "DICT")
+
+        except Exception as e:
+            logger.error(f"Error getting active polling requests: {e}")
+            return []
 
     def get_sumbitted_requests(self) -> list[dict[str, Any]]:
         """Retrieves all requests from the 'bloomberg_requests' table that have a status of 'submitted'.

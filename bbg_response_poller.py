@@ -27,6 +27,7 @@ def _content_type_match(content_type, match_str):
 class BloombergResponsePoller:
     def __init__(
         self,
+        run_til_complete = False,
         redis_host: str = None,
         db_server: str = None,
         db_port: str = None,
@@ -52,6 +53,7 @@ class BloombergResponsePoller:
         db_port = db_port or os.environ.get("BBG_SQL_PORT", "")
         _database = _database or os.environ.get("BBG_DATABASE", "")
         redis_host = redis_host or os.environ.get("REDIS_HOST", "")
+        self.run_til_complete = run_til_complete
         # SQL Server connection
         self.db_connection = BloombergDatabase(
             server=db_server, port=db_port, database=_database
@@ -166,7 +168,7 @@ class BloombergResponsePoller:
                 break 
 
     # run til complete once all pending are resolved exit..
-    def start_polling(self, run_til_complete : bool = False):
+    def start_polling(self, until_complete : bool = False):
         """Start the response polling loop"""
         self.is_running = True
         logger.info("Starting Bloomberg response polling...")
@@ -175,7 +177,7 @@ class BloombergResponsePoller:
             while self.is_running:
                 cnt = self._poll_bbg_existing_requests()
 
-                if ((cnt == 0)and(run_til_complete)):
+                if ((cnt == 0)and(self.run_til_complete)):
                     self.is_running = False
 
                 if (self.is_running):
@@ -318,13 +320,16 @@ def setup_logging():
 
 def main():
     try:
-        for arg in sys.argv:
-            if arg == "run_to_complete":
-                run_until_complete = True
+        run_til_complete = False
+
+        for arg in sys.argv[1:]:
+            logger.debug(f"arg is {arg}")
+            if arg == "run_til_complete":
+                run_til_complete = True
 
         setup_logging()
         # Initialize poller
-        poller = BloombergResponsePoller()
+        poller = BloombergResponsePoller(run_til_complete=run_til_complete)
 
         # Start polling
         poller.start_polling()
@@ -335,4 +340,9 @@ def main():
 
 # Example usage and main execution
 if __name__ == "__main__":
+  try:
     main()
+    exit(0)  # cape may...:)
+  except Exception as e:
+    logger.critical(f"Errored out uncaught exception {e}")
+    exit(1)
