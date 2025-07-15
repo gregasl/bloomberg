@@ -167,7 +167,7 @@ class BloombergOutputter:
         
             try:
                 self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
-                                                 request_status['name'], 'db', 'processed')
+                                                 request_status['name'], 'database', 'processed')
             except Exception as save_e:
                 logger.error("Error updating process status DB {save_e}")
                 raise
@@ -175,12 +175,12 @@ class BloombergOutputter:
         except OSError as oserror:
             logger.error("Error saving data to DB.. {oserror}") # what if these fail hmmm
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
-                                         request_status['name'], 'db', 'error', f'{oserror}')
+                                         request_status['name'], 'database', 'error', f'{oserror}')
             raise
         except Exception as e:
             logger.error("Error saving data to DB.. {e}")
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
-                                         request_status['name'], 'db', 'error', f'{e}')
+                                         request_status['name'], 'database', 'error', f'{e}')
             raise
             
 
@@ -274,34 +274,42 @@ class BloombergOutputter:
             self,
             request_status: dict[str, Any],
             request_def: dict[str, Any],
+            output_type : SyntaxWarning
     ) -> None:
         
         data_type, data_content = self.bbgdb.get_data_content(request_status['request_id'])
         try:
-            self.write_db_table(request_status, request_def, data_type, data_content)
-            self.write_csv(request_status, request_def, data_type, data_content)
-            self.write_raw(request_status, request_def, data_content)
+            if (output_type == 'database'):
+                self.write_db_table(request_status, request_def, data_type, data_content)
+            elif (output_type == 'csv'):
+                self.write_csv(request_status, request_def, data_type, data_content)
+            elif (output_type == 'raw'):
+                self.write_raw(request_status, request_def, data_content)
+            else:
+                logger.error(f"What output type {output_type}")
+
         except Exception as e:
             logging.error("Unable to process data {e}")
             raise
 
     def output_request(
             self,
-            request_id
+            request_id : str,
+            output_type : str
     ):
         is_ready, request_status = self.bbgdb.is_request_ready(request_id)
 
         if is_ready:
             request_def: dict[str, Any] = self.requestDefinitions[request_status["name"]]
-            self.write_data(request_status, request_def)
-            logger.info(f"its ready {request_id}")
+            self.write_data(request_status, request_def, output_type)
+            logger.info(f"its ready {request_id} for {output_type}")
 
 
     def output_ready_requests(self):
         data_rows = self.bbgdb.get_requests_ready_to_output()
 
         for data_row in data_rows:
-            self.output_request(data_row['request_id'])
+            self.output_request(data_row['request_id'], data_row['output_type'])
 
 
 

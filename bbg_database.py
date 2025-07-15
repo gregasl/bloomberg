@@ -225,12 +225,13 @@ class BloombergDatabase:
         
     def get_requests_ready_to_output(self) -> list[dict[str, Any]]:
         try:
+            ## we need a way to only do 1 or 2 not all 3 all the time
             query: str = """
-                SELECT br.request_id, br.identifier, br.name
-                FROM bloomberg_requests br
+                SELECT br.request_id, bot.output_type,  br.identifier, br.name
+                FROM bloomberg_requests br, bloomberg_output_types bot
                 WHERE br.status = 'completed' and
                 not exists(select 1 from bloomberg_process_status bps where bps.processed_status = 'processed' 
-                and br.request_id = bps.request_id)
+                and br.request_id = bps.request_id and bot.output_type = bps.process_type )
             """
             logger.info(query)
             return self.db_connection.fetch(query, "DICT")
