@@ -3,9 +3,17 @@ from uuid import UUID
 from typing import Any
 import csv
 import io
+import re
 from datetime import datetime
 
-from ASL import ASL_Logging
+try:
+    from ASL.utils.asl_logging import ASL_Logging
+except ImportError:
+    try:
+        from ASL import ASL_logging
+    except ImportError:
+        ASL_Logging = None
+#from ASL import ASL_Logging
 
 from bbg_redis import BloombergRedis
 from bbg_database import BloombergDatabase
@@ -23,14 +31,32 @@ logger = logging.getLogger(__name__)
 
 
 class BloombergOutputter:
+    DateFmt = "%Y-%m-%d"
+    TimeFmt = "%H:%M:%S"
+    DateRegex = re.compile(r'%D%')
+    TimeRegex = re.compile(r'%T%')
+    
     def __init__(
             self,
             bbgdb : BloombergDatabase
     ):
         self.bbgdb = bbgdb
+       
         self.bbgDataDef = BloombergDataDef(bbgdb)
         self.requestDefinitions: dict[str, dict[str, any]] = self.bbgdb.get_request_definitions()
 
+    
+    ## translate date and time... regex
+    @staticmethod
+    def expand_file_name(infilename : str) -> str:
+        today = datetime.now()
+        todayStr = today.strftime(BloombergOutputter.DateFmt)
+        nowTimeStr = today.strftime(BloombergOutputter.TimeFmt)
+
+        returnStr : str = re.sub(BloombergOutputter.DateRegex, todayStr, infilename)
+        returnStr = re.sub(BloombergOutputter.TimeRegex, nowTimeStr, returnStr)
+
+        return returnStr
     
     def _convert_csv_to_dict(self, in_data_content: str) -> list[dict[str, Any]]:
         csv_imitation_file = io.StringIO(in_data_content)
@@ -65,6 +91,7 @@ class BloombergOutputter:
 
         return tuple(returnList)
 
+
     def _get_output_fields(self,
         row: dict[str, Any], today_str: str, data_type_list: list[dict[str, Any]]
     ) -> list[Any]:
@@ -81,15 +108,22 @@ class BloombergOutputter:
 
         return returnList
 
+
     def write_db_table(
         self,
+        request_status : dict[str, Any],
         request_def: dict[str, Any],
-        in_data_type,
+        in_data_type : str,
         in_data_content,
+        delete_today : bool = True
     ) -> None:
+        today = datetime.now()
+        todayStr = today.strftime(BloombergOutputter.DateFmt)
         csv_data = self._convert_csv_to_dict(in_data_content)
         table = request_def["save_table"]
         insert_str = f"insert into {table} ("
+        delete_str = f"delete from {table} where business_date >= '{todayStr}'"
+
         # these are sorted in the class so they should align.  We can do this in 1 go if too slow - get_data_to_request
         data_type_list: list[dict[str, Any]] = self.bbgDataDef.get_data_to_request(
             request_def["request_name"], incl_static_data=True, include_id=True
@@ -114,27 +148,52 @@ class BloombergOutputter:
         col_names = ",".join(db_col_name_list)
         questions = ",".join(question_list)
 
+        if (delete_today):
+             logger.info(delete_str)
+             self.bbgdb.db_connection.execute_query(
+                    query=delete_str, commit=True
+                )
+             
         insert_str = insert_str + col_names + ") VALUES (" + questions + ")"
-        print(insert_str)
-        today = datetime.today()
-        today_str = today.strftime("%Y-%m-%d")
+        logger.info(insert_str)  # debug???
 
-        for row in csv_data:
-            params = self._get_params(row, today_str, data_type_list)
-            # params = tuple(map(lambda key: row.get(key, None), col_name_list))
-            print(params)
-            self.bbgdb.db_connection.execute_param_query(
-                query=insert_str, params=params, commit=True
-            )
+        try:
+            for row in csv_data:
+                params = self._get_db_params(row, todayStr, data_type_list)
+                logger.info(params)
+                self.bbgdb.db_connection.execute_param_query(
+                    query=insert_str, params=params, commit=True
+                )
+        
+            try:
+                self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                                 request_status['name'], 'db', 'processed')
+            except Exception as save_e:
+                logger.error("Error updating process status DB {save_e}")
+                raise
+
+        except OSError as oserror:
+            logger.error("Error saving data to DB.. {oserror}") # what if these fail hmmm
+            self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                         request_status['name'], 'db', 'error', f'{oserror}')
+            raise
+        except Exception as e:
+            logger.error("Error saving data to DB.. {e}")
+            self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                         request_status['name'], 'db', 'error', f'{e}')
+            raise
+            
 
     def write_csv(
             self,
+            request_status,
         request_def: dict[str, Any],
         in_data_type,
         in_data_content,
     ) -> None:
         csv_data = self._convert_csv_to_dict(in_data_content)
-        save_file = request_def["save_file"]
+        save_file = BloombergOutputter.expand_file_name(request_def["save_file"])
+
         # these are sorted in the class so they should align.  We can do this in 1 go if too slow - get_data_to_request
         data_type_list: list[dict[str, Any]] = self.bbgDataDef.get_data_to_request(
             request_def["request_name"], incl_static_data=True, include_id=True
@@ -155,32 +214,76 @@ class BloombergOutputter:
             )
         )
         today = datetime.today()
-        today_str = today.strftime("%Y-%m-%d")
+        today_str = today.strftime(BloombergOutputter.DateFmt)
 
-        with open(save_file, "w") as f:
-            f.write(",".join(file_col_name_list) + "\n")
-            for row in csv_data:
-                out_cols = self._get_output_fields(row, today_str, data_type_list)
-                f.write(",".join(out_cols) + "\n")
+        try:
+            with open(save_file, "w") as f:
+                f.write(",".join(file_col_name_list) + "\n")
+                for row in csv_data:
+                    out_cols = self._get_output_fields(row, today_str, data_type_list)
+                    f.write(",".join(out_cols) + "\n")
+        
+            try:
+                self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                                 request_status['name'], 'csv', 'processed')
+            except Exception as save_e:
+                logger.error("Error updating process status CSV {save_e}")
+                raise
 
-        # params = tuple(map(lambda key: row.get(key, None), col_name_list))
+        except OSError as oserror:
+            logger.error("Error saving data to CSV.. {oserror}") # what if these fail hmmm
+            self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                         request_status['name'], 'csv', 'error', f'{oserror}')
+            raise
+        except Exception as e:
+            logger.error("Error saving data to CSV.. {e}") # what if these fail hmmm
+            self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                         request_status['name'], 'csv', 'error', f'{e}')
+            raise
+        
 
-    def write_raw(request_def: dict[str, Any], in_data_content) -> None:
-        raw_file = request_def["raw_file"]
+
+    def write_raw(self, request_status : dict[str, Any], request_def: dict[str, Any], in_data_content) -> None:
+        raw_file = BloombergOutputter.expand_file_name(request_def["raw_file"])
         # these are sorted in the class so they should align.  We can do this in 1 go if too slow - get_data_to_request
 
-        with open(raw_file, "w") as f:
-            f.write(in_data_content)
+        try:
+            with open(raw_file, "w") as f:
+                f.write(in_data_content)
+
+            try:
+               self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                                request_status['name'], 'raw', 'processed')
+            except Exception as save_e:
+                logger.error("Error updating process status raw {save_e}")
+                raise                            
+            
+        except OSError as oserror:
+            logger.error("Error saving data to RAW.. {oserror}") # what if these fail hmmm
+            self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                         request_status['name'], 'raw', 'error', f'{oserror}')
+            raise
+        except Exception as e:
+            logger.error("Error saving data to RAW.. {oserror}") # what if these fail hmmm
+            self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
+                                         request_status['name'], 'raw', 'error', f'{e}')
+            raise
+        #
 
     def write_data(
             self,
+            request_status: dict[str, Any],
             request_def: dict[str, Any],
-            request_status: dict[str, Any]
     ) -> None:
-        data_type, data_content = self.bbgdb.get_data_content(request_status["request_id"])
-        # write_db_table(bbgdb, request_def, bbgDataDef, data_type, data_content)
-        self.write_csv(request_def, data_type, data_content)
-        self.write_raw(request_def, data_content)
+        
+        data_type, data_content = self.bbgdb.get_data_content(request_status['request_id'])
+        try:
+            self.write_db_table(request_status, request_def, data_type, data_content)
+            self.write_csv(request_status, request_def, data_type, data_content)
+            self.write_raw(request_status, request_def, data_content)
+        except Exception as e:
+            logging.error("Unable to process data {e}")
+            raise
 
     def output_request(
             self,
@@ -190,14 +293,15 @@ class BloombergOutputter:
 
         if is_ready:
             request_def: dict[str, Any] = self.requestDefinitions[request_status["name"]]
-            self.write_data(self.bbgdb, request_def, self.bbgDataDef, request_status)
+            self.write_data(request_status, request_def)
             logger.info(f"its ready {request_id}")
 
-    def output_ready_requests(self):
-        data_rows = self.bbgdb.get_pending_data()
 
-        for request_id in request_ids:
-            self.output_request(self.bbgdb, self.requestDefinitions, self.bbgDataDef, request_id)
+    def output_ready_requests(self):
+        data_rows = self.bbgdb.get_requests_ready_to_output()
+
+        for data_row in data_rows:
+            self.output_request(data_row['request_id'])
 
 
 
@@ -205,6 +309,7 @@ def setup_logging():
     logger = ASL_Logging(
         log_file="bbg_get_all_cusips",
         log_path="./output",
+        log_level_threshold=logging.INFO,
         use_log_header=True,
         useBusinessDateRollHandler=True,
     )
@@ -217,16 +322,9 @@ def main():
         bbgdb=bbgdb
     )
 
-    logger.info("Bloomberg Outputter Sender Starting")
+    logger.info("Bloomberg Outputter startimg")
+    bbgOutputter.output_ready_requests()
 
-#    logger.info("Requesting MBS")
-#    request_id = redis_que.submit_command(REQUEST_MBS_CUSIPS)
-#    print(f'mbs {request_id}')
-#    logger.info("Requesting FUT")
-#    request_id = redis_que.submit_command(REQUEST_FUT_CUSIPS)
-#    print(f'fut {request_id}')
-#    request_id = redis_que.submit_command(EXIT_CMD)
-#    print(f'fut {request_id}')
 
 
 # *****************************************************

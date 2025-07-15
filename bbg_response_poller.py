@@ -324,7 +324,7 @@ def main():
 
         for arg in sys.argv[1:]:
             logger.debug(f"arg is {arg}")
-            if arg == "run_til_complete":
+            if arg == "run_til_complete" or arg == "run_sequential":
                 run_til_complete = True
 
         setup_logging()

@@ -19,8 +19,6 @@ CREATE TABLE bloomberg_requests (
     priority INT DEFAULT 1 NOT NULL,
     response_id  NVARCHAR(50) NULL,
     response NVARCHAR(256) NULL,
-    processed_status NVARCHAR(20) DEFAULT 'pending' NOT NULL  CONSTRAINT bbg_processed_status_check CHECK (processed_status in ('pending', 'error', 'processed')),
-    process_error NVARCHAR(256) NULL,
     request_retry_count INT DEFAULT 0 NOT NULL,
     max_request_retries INT DEFAULT 5 NOT NULL,
     retry_wait_sec INT DEFAULT 120 NOT NULL,
@@ -35,8 +33,4 @@ CREATE TABLE bloomberg_requests (
     ts DATETIME2 DEFAULT GETDATE()
 )
 go
-
-CREATE NONCLUSTERED INDEX bloomberg_requests_request_id_indx on dbo.bloomberg_requests(request_id, ts)
-go
-
 

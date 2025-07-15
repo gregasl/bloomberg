@@ -212,7 +212,7 @@ class BloombergDatabase:
         """
         try:
             query: str = """
-                SELECT request_id, identifier, response_poll_count, max_response_polls
+                SELECT request_id, identifier, namne, response_poll_count, max_response_polls
                 FROM bloomberg_requests
                 WHERE status = 'submitted' and response_poll_count < max_response_polls
             """
@@ -223,17 +223,14 @@ class BloombergDatabase:
             logger.error(f"Error getting active polling requests: {e}")
             return []
         
-    def get_active_polling_requests(self) -> list[dict[str, Any]]:
-        """Retrieve all active polling requests from the 'bloomberg_requests' table.
-        Returns:
-            list[dict[str, Any]]: A list of dictionaries, each representing a request that is currently being polled
-            (i.e., has status 'polling' and poll_count less than max_polls). Returns an empty list if an error occurs.
-        """
+    def get_requests_ready_to_output(self) -> list[dict[str, Any]]:
         try:
             query: str = """
-                SELECT request_id, identifier, response_poll_count, max_response_polls
-                FROM bloomberg_requests
-                WHERE status = 'submitted' and response_poll_count < max_response_polls
+                SELECT br.request_id, br.identifier, br.name
+                FROM bloomberg_requests br
+                WHERE br.status = 'completed' and
+                not exists(select 1 from bloomberg_process_status bps where bps.processed_status = 'processed' 
+                and br.request_id = bps.request_id)
             """
             logger.info(query)
             return self.db_connection.fetch(query, "DICT")
@@ -358,6 +355,16 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error updating poll count: {e}")
             raise
+
+    def update_process_status(self, request_id : str, identifier: str, request_name :str, process_type : str, process_status : str ="pending", process_error : str = "") -> None:
+        query : str = """insert into bloomberg_process_status 
+           (request_id, identifier, name, process_type, processed_status, process_error)
+           VALUES (?, ?, ?, ?, ?, ?)"""
+        params : tuple = (request_id, identifier, request_name, process_type, process_status, process_error)
+        logger.info(query)
+        logger.info(params)
+        self.db_connection.execute_param_query(query, params, commit=True)
+
 
     def get_request_definitions(self) -> dict[str, dict[str, Any]]:
         try:

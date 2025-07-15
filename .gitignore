@@ -44,6 +44,7 @@ nosetests.xml
 coverage.xml
 *.log
 logs/
+database_data/
 data/
 *.rpt
 *.json

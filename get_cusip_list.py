@@ -5,7 +5,8 @@ import pandas as pd
 #  import send_email
 import os
 import logging
-from ASL import ASL_Logging
+from ASL.utils.asl_logging import ASL_Logging
+# from ASL import ASL_Logging
 import datetime
 import ASL
 import sys

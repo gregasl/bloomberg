@@ -38,7 +38,7 @@ from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase
 logger = logging.getLogger(__name__)
 
 RunningState = RunState.INITIALIZING
-OnlyOneIssue = True
+OnlyOne = True
 
 class BloombergRequestSender:
     MAX_LOOPS = -1  # wait for exit...
@@ -335,6 +335,7 @@ class BloombergRequestSender:
         request_name: str = "TsyBondInfo",
         title: str = "Tsy Bond Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
+        max_cusips : int = None
     ) -> BloombergRequest:
         """
         Convenience method to submit CUSIP-based requests
@@ -349,11 +350,14 @@ class BloombergRequestSender:
         Returns:
             the bloomberg request...
         """
+        if (OnlyOne):
+            max_cusips = 1
+
         # Build universe from CUSIPs
         if not cusips:
             cusips = get_phase3_tsy_cusips()
-            if (OnlyOneIssue):
-             cusips = cusips[:1]  # lets only play with 1 now
+            if (max_cusips is not None):
+             cusips = cusips[:max_cusips]  # lets only play with 1 now
 
         variable_request_list: set[str] = sender.data_def.get_request_col_name_list(request_name, 0)
         static_request_list: set[str] = sender.data_def.get_request_col_name_list(request_name, 1)
@@ -389,6 +393,7 @@ class BloombergRequestSender:
         request_name: str = "MBSBondInfo",
         title: str = "MBS Bond Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
+        max_cusips : int = None
     ) -> BloombergRequest:
         """
         Convenience method to submit CUSIP-based requests
@@ -403,11 +408,13 @@ class BloombergRequestSender:
         Returns:
             the bloomberg request...
         """
+        if (OnlyOne):
+            max_cusips = 1
         # Build universe from CUSIPs
         if not cusips:
             cusips = get_phase3_mbs_cusips()
-            if (OnlyOneIssue):
-                cusips = cusips[:1]  # lets only play with 1 now
+            if (max_cusips is not None):
+             cusips = cusips[:max_cusips]  
 
 
         if not fields:
@@ -442,6 +449,7 @@ class BloombergRequestSender:
         request_name: str = "FuturesInfo",
         title: str = "Futures Info Request",
         priority: int = DEFAULT_REQUEST_PRIORITY,
+        max_cusips : int = None
     ) -> BloombergRequest:
         """
         Convenience method to submit CUSIP-based requests
@@ -456,11 +464,13 @@ class BloombergRequestSender:
         Returns:
             the bloomberg request...
         """
+        if (OnlyOne):
+            max_cusips = 1
         # Build universe from CUSIPs
         if not tickers:
             tickers = get_futures_tickers()
-            if (OnlyOneIssue):
-                tickers = tickers[:1]  # lets only play with 1 now
+            if (max_cusips is not None):
+             cusips = cusips[:max_cusips]  # lets only play with 1 now
 
         if not fields:
             fields: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
@@ -508,9 +518,9 @@ def main():
 
     for arg in sys.argv[1:]:
         logger.debug(f"arg is {arg}")
-        if arg == "run_cusips":
+        if arg == "run_cusips" or arg == "run_sequential":
                 run_cusips = True
-   
+
     if run_cusips:
        request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
        logger.info(f"Submitted Bloomberg TSY request: {request_id}")

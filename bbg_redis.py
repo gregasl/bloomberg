@@ -76,7 +76,7 @@ class BloombergRedis:
             logger.error(f"Error queuing request to {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise
 
-    def submit_command(self, cmd: str, request_id : str = None, priority=DEFAULT_CMD_PRIORITY) -> str:
+    def submit_command(self, cmd: str, request_id : str = None, priority=DEFAULT_CMD_PRIORITY, payload : str = "") -> str:
         if request_id is None:
             request_id = str(uuid.uuid4())
 
@@ -85,7 +85,7 @@ class BloombergRedis:
             request_id=request_id,
             identifier="",
             request_name="",
-            request_payload="",
+            request_payload=payload,
             request_type=REQUEST_TYPE_CMD,
             priority=priority,
             max_retries=1,

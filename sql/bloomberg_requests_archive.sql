@@ -19,8 +19,6 @@ CREATE TABLE bloomberg_requests_archive (
     priority INT NOT NULL,
     response_id  NVARCHAR(50) NULL,
     response NVARCHAR(256) NULL,
-    processed_status NVARCHAR(20),
-    process_error NVARCHAR(256) NULL,
     request_retry_count INT NOT NULL,
     max_request_retries INT NOT NULL,
     retry_wait_sec INT NOT NULL,
