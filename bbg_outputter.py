@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 class BloombergOutputter:
     DateFmt = "%Y-%m-%d"
-    TimeFmt = "%H:%M:%S"
+    TimeFmt = "%H%M%S"
     DateRegex = re.compile(r'%D%')
     TimeRegex = re.compile(r'%T%')
     
@@ -100,6 +100,10 @@ class BloombergOutputter:
         for data_type_item in data_type_list:
             if data_type_item[BloombergDataDef.OUTPUT_COL_NAME] == "":
                 continue
+
+            for key, value in row.items():
+                print(f'key {key}')
+                print(value)
 
             val = row[data_type_item[BloombergDataDef.REQUEST_NAME_COL]]
             data_type = data_type_item[BloombergDataDef.DATA_TYPE_COL]
@@ -169,16 +173,16 @@ class BloombergOutputter:
                 self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                                  request_status['name'], 'database', 'processed')
             except Exception as save_e:
-                logger.error("Error updating process status DB {save_e}")
+                logger.error(f"Error updating process status DB {save_e}")
                 raise
 
         except OSError as oserror:
-            logger.error("Error saving data to DB.. {oserror}") # what if these fail hmmm
+            logger.error(f"Error saving data to DB.. {oserror}") # what if these fail hmmm
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                          request_status['name'], 'database', 'error', f'{oserror}')
             raise
         except Exception as e:
-            logger.error("Error saving data to DB.. {e}")
+            logger.error(f"Error saving data to DB.. {e}")
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                          request_status['name'], 'database', 'error', f'{e}')
             raise
@@ -215,9 +219,9 @@ class BloombergOutputter:
         )
         today = datetime.today()
         today_str = today.strftime(BloombergOutputter.DateFmt)
-
+        logger.info(f"CSV MODE - writing to {save_file}")
         try:
-            with open(save_file, "w") as f:
+            with open(save_file, "w+") as f:
                 f.write(",".join(file_col_name_list) + "\n")
                 for row in csv_data:
                     out_cols = self._get_output_fields(row, today_str, data_type_list)
@@ -227,16 +231,16 @@ class BloombergOutputter:
                 self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                                  request_status['name'], 'csv', 'processed')
             except Exception as save_e:
-                logger.error("Error updating process status CSV {save_e}")
+                logger.error(f"Error updating process status CSV {save_e}")
                 raise
 
         except OSError as oserror:
-            logger.error("Error saving data to CSV.. {oserror}") # what if these fail hmmm
+            logger.error(f"Error saving data to CSV.. {oserror}") # what if these fail hmmm
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                          request_status['name'], 'csv', 'error', f'{oserror}')
             raise
         except Exception as e:
-            logger.error("Error saving data to CSV.. {e}") # what if these fail hmmm
+            logger.error(f"Error saving data to CSV.. {e}") # what if these fail hmmm
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                          request_status['name'], 'csv', 'error', f'{e}')
             raise
@@ -246,25 +250,25 @@ class BloombergOutputter:
     def write_raw(self, request_status : dict[str, Any], request_def: dict[str, Any], in_data_content) -> None:
         raw_file = BloombergOutputter.expand_file_name(request_def["raw_file"])
         # these are sorted in the class so they should align.  We can do this in 1 go if too slow - get_data_to_request
-
+        logger.info(f"RAW MODE - writing to {raw_file}")
         try:
-            with open(raw_file, "w") as f:
+            with open(raw_file, "w+") as f:
                 f.write(in_data_content)
 
             try:
                self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                                 request_status['name'], 'raw', 'processed')
             except Exception as save_e:
-                logger.error("Error updating process status raw {save_e}")
+                logger.error(f"Error updating process status raw {save_e}")
                 raise                            
             
         except OSError as oserror:
-            logger.error("Error saving data to RAW.. {oserror}") # what if these fail hmmm
+            logger.error(f"Error saving data to RAW.. {oserror}") # what if these fail hmmm
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                          request_status['name'], 'raw', 'error', f'{oserror}')
             raise
         except Exception as e:
-            logger.error("Error saving data to RAW.. {oserror}") # what if these fail hmmm
+            logger.error(f"Error saving data to RAW.. {oserror}") # what if these fail hmmm
             self.bbgdb.update_process_status(request_status['request_id'], request_status['identifier'],
                                          request_status['name'], 'raw', 'error', f'{e}')
             raise
@@ -289,7 +293,7 @@ class BloombergOutputter:
                 logger.error(f"What output type {output_type}")
 
         except Exception as e:
-            logging.error("Unable to process data {e}")
+            logging.error(f"Unable to process data {e}")
             raise
 
     def output_request(
@@ -319,6 +323,7 @@ def setup_logging():
         log_path="./output",
         log_level_threshold=logging.INFO,
         use_log_header=True,
+        use_stream_output=True,
         useBusinessDateRollHandler=True,
     )
 
