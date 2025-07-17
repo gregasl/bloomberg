@@ -5,7 +5,7 @@ set PROGRAM=%~1
 set ENVIRONMENT=%~2
 :: Check if the first parameter (%1) is empty
 if "%ENVIRONMENT%" == "" (
-    set ENVIRONMENT="PROD"
+    set ENVIRONMENT="DEV"
 ) 
 
 :: You can then use %param1_value% throughout your script
@@ -16,24 +16,24 @@ set BLOOMBERG_DL_ACCOUNT_NUMBER=791793
 
 REM Redis
 IF "%ENVIRONMENT%" == "DEV" (
-   set REDIS_HOST="cacheuat"
+   set REDIS_HOST=cacheuat
    set REDIS_PORT=6379
    set REDIS_DB=0
-   set BBG_SQL_SERVER="asldb03"
-   set BBG_DATABASE="playdb"
-   set BBG_SQL_PORT="1433"
-   set LOG_DIR="output"
-   set PYTHONPATH="//aslfile01/aslcap/IT/software/Development/python;//aslfile01/aslcap/IT/software/Production/python"
+   set BBG_SQL_SERVER=asldb03
+   set BBG_DATABASE=playdb
+   set BBG_SQL_PORT=1433
+   set LOG_DIR=output
+   set PYTHONPATH=//aslfile01/aslcap/IT/software/Development/python;//aslfile01/aslcap/IT/software/Production/python
 ) ELSE (
-    set REDIS_HOST="cacheprod"
+    set REDIS_HOST=cacheprod
     set REDIS_PORT=6379
     set REDIS_DB=0
-    set BBG_SQL_SERVER="asldb03"
-    set BBG_DATABASE="playdb"
-    set BBG_SQL_PORT="1433"
+    set BBG_SQL_SERVER=asldb03
+    set BBG_DATABASE=playdb
+    set BBG_SQL_PORT=1433
     REM change this once asql and asl_logging is released
-    set PYTHONPATH="//aslfile01/aslcap/IT/software/Development/python;//aslfile01/aslcap/IT/software/Production/python"
-    set LOG_DIR="output"
+    set PYTHONPATH=//aslfile01/aslcap/IT/software/Development/python;//aslfile01/aslcap/IT/software/Production/python
+    set LOG_DIR=output
 )
 
 
@@ -53,4 +53,5 @@ REM pip install redis pyodbc oauthlib requests-oauthlib
 echo "Environment is..."
 set
 echo Running %PROGRAM%
-%PROGRAM%
+python %PROGRAM% %PARAM1%
+

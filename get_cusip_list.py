@@ -149,7 +149,8 @@ def get_phase3_mbs_cusips() -> list[str]:
 
 def get_futures_tickers() -> list[str]:
   try:
-        ALSConnect = 'DRIVER={SQL Server};SERVER=ASLDB03;DATABASE=playdb;Trusted_Connection=yes'
+        ticker_database = os.environ.get("BBG_DATABASE", "Bloomberg") 
+        ALSConnect = f'DRIVER={{SQL Server}};SERVER=ASLDB03;DATABASE={ticker_database};Trusted_Connection=yes'
         connection = pyodbc.connect(ALSConnect, autocommit=True)
   except Exception as e:
     logger.error("Error connecting to DB {e}")

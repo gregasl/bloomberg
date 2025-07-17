@@ -19,9 +19,10 @@ CREATE TABLE bloomberg_data_def (
     output_col_name NVARCHAR(128) NULL,
     db_col_name NVARCHAR(128) NOT NULL,
     ts DATETIME2 NOT NULL DEFAULT (GETDATE())
-    PRIMARY KEY(request_col_name, request_name)
 )
 go
+
+CREATE NONCLUSTERED INDEX bbg_data_def_request_col_name_indx on dbo.bloomberg_data_def(request_col_name, request_name, reply_col_name)
 
 CREATE NONCLUSTERED INDEX bbg_data_def_col_order_indx on dbo.bloomberg_data_def(request_name, col_order, reply_col_name)
 go

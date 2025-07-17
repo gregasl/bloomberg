@@ -38,7 +38,7 @@ from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase
 logger = logging.getLogger(__name__)
 
 RunningState = RunState.INITIALIZING
-OnlyOne = True
+OnlyOne = False
 
 class BloombergRequestSender:
     MAX_LOOPS = -1  # wait for exit...
@@ -470,7 +470,7 @@ class BloombergRequestSender:
         if not tickers:
             tickers = get_futures_tickers()
             if (max_cusips is not None):
-             cusips = cusips[:max_cusips]  # lets only play with 1 now
+             tickers = tickers[:max_cusips]  # lets only play with 1 now
 
         if not fields:
             fields: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
@@ -478,23 +478,27 @@ class BloombergRequestSender:
         variable_request_list: list[str] = sender.data_def.get_request_col_name_list(request_name, 0)
         static_request_list: list[str] = sender.data_def.get_request_col_name_list(request_name, 1)
         
-        #is it still CUSIP??? Need to check
         universe = {
             "@type": "Universe",
             "contains": [
-                {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": ticker}
+                {"@type": "Identifier", "identifierType": "TICKER", "identifierValue": f'{ticker} Comdty'} 
                 for ticker in tickers
             ],
         }
         # Build field list
+        # logger.debug("Universe")
+        # logger.debug(universe)
+
         field_list = {
             "@type": "DataFieldList",
             "contains": [{"mnemonic": field} for field in fields],
         }
 
         request: BloombergRequest = sender.create_data_request(
-            request_name, title, universe, field_list, request_id=request_id, priority=priority
+            request_name, title,
+            universe, field_list, request_id=request_id, priority=priority
         )
+
         return request
 
     def close(self):
@@ -522,12 +526,12 @@ def main():
                 run_cusips = True
 
     if run_cusips:
-       request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
-       logger.info(f"Submitted Bloomberg TSY request: {request_id}")
+    #    request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
+    #    logger.info(f"Submitted Bloomberg TSY request: {request_id}")
     #    request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
     #    logger.info(f"Submitted Bloomberg MBS request: {request_id}")
-    #    request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
-    #    logger.info(f"Submitted Bloomberg FUT request: {request_id}")
+       request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
+       logger.info(f"Submitted Bloomberg FUT request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
        logger.info(f"Sent EXIT!")

@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 class BloombergDataDef :
     DATA_TYPE_COL = "data_type"
     REQUEST_NAME_COL = "request_col_name"
+    REPLY_COL_NAME = "reply_col_name"
     DATABASE_COL_NAME = "db_col_name"
     OUTPUT_COL_NAME = "output_col_name"
     DATA_TYPE_COL = "data_type"
@@ -40,8 +41,11 @@ class BloombergDataDef :
          return self._get_data_to_request_from_list(request_name_lst, incl_static_data, include_id)
         
     def get_request_col_name_list(self, request_name : str, incl_static_data : bool, include_id : bool = False) -> list[str]:
-        return list(map(lambda x: x.get(BloombergDataDef.REQUEST_NAME_COL), self.get_data_to_request(request_name, incl_static_data,
-                                                                                                     include_id=include_id)))
+        return_list : list[str] = list(filter(lambda req_name_col: len(req_name_col) > 0, # clean out empty items...
+                        map(lambda x: x.get(BloombergDataDef.REQUEST_NAME_COL), 
+                                   self.get_data_to_request(request_name, incl_static_data,
+                                                            include_id=include_id))))
+        return return_list 
     
     def get_db_col_name_list(self, request_name : str, incl_static_data : bool, include_id : bool = False) -> list[str]:
         return list(map(lambda x: x.get(BloombergDataDef.DATABASE_COL_NAME), self.get_data_to_request(request_name, incl_static_data,

@@ -35,6 +35,8 @@ class BloombergOutputter:
     TimeFmt = "%H%M%S"
     DateRegex = re.compile(r'%D%')
     TimeRegex = re.compile(r'%T%')
+    FuturesCleaner = re.compile(r' Govt| Comdty')
+
     
     def __init__(
             self,
@@ -63,7 +65,14 @@ class BloombergOutputter:
         reader = csv.DictReader(csv_imitation_file)
         return list(reader)
 
-    def _get_db_params(self,
+    def _futures_cleaner(self, val : str) -> str:
+        return re.sub(BloombergOutputter.FuturesCleaner, '', val)
+
+    def _clean(self, request_name : str, val : str):
+        if (request_name == 'FuturesInfo'):
+            return(self._futures_cleaner(val))
+
+    def _get_db_params(self, request_name : str,
         row: dict[str, Any], today_str: str, data_type_list: list[dict[str, Any]]
     ) -> tuple[Any]:
 
@@ -72,27 +81,31 @@ class BloombergOutputter:
             if data_type_item[BloombergDataDef.DATABASE_COL_NAME] == "":
                 continue
 
-            val = row[data_type_item[BloombergDataDef.REQUEST_NAME_COL]]
-            data_type = data_type_item[BloombergDataDef.DATA_TYPE_COL]
-            if val == "true" or val == "false":
-                val = 0 if (val == "false") else 1
-            elif data_type == "FLOAT":
-                if val == "":
-                    val = 0.0
-                else:
-                    val = float(val)
-            # elif (data_type == "DATE"):
-            #    date_format = "%Y-%m-%d"  # Example format: Year-Month-Day
-            #    val = datetime.strptime(val, date_format)
-            elif data_type == "BOOLEAN":
-                val = 0 if (val == "false") else 1
+            try:
+                val = row[data_type_item[BloombergDataDef.REPLY_COL_NAME]]
+                data_type = data_type_item[BloombergDataDef.DATA_TYPE_COL]
+                if val == "true" or val == "false":
+                     val = 0 if (val == "false") else 1
+                elif data_type == "FLOAT":
+                    if val == "":
+                        val = 0.0
+                    else:
+                        val = float(val)
+                # elif (data_type == "DATE"):
+                #    date_format = "%Y-%m-%d"  # Example format: Year-Month-Day
+                #    val = datetime.strptime(val, date_format)
+                elif data_type == "BOOLEAN":
+                    val = 0 if (val == "false") else 1
+            except Exception as e:
+                logging.error("db col error {e}")
 
+            val = self._clean(request_name, val)
             returnList.append(val)
 
         return tuple(returnList)
 
 
-    def _get_output_fields(self,
+    def _get_output_fields(self, request_name: str,
         row: dict[str, Any], today_str: str, data_type_list: list[dict[str, Any]]
     ) -> list[Any]:
 
@@ -101,14 +114,14 @@ class BloombergOutputter:
             if data_type_item[BloombergDataDef.OUTPUT_COL_NAME] == "":
                 continue
 
-            for key, value in row.items():
-                print(f'key {key}')
-                print(value)
+            try:
+                colName = data_type_item[BloombergDataDef.REPLY_COL_NAME]
+                val = self._clean(request_name, row[colName]) # we will just let it throw...
 
-            val = row[data_type_item[BloombergDataDef.REQUEST_NAME_COL]]
-            data_type = data_type_item[BloombergDataDef.DATA_TYPE_COL]
+                returnList.append(val)
+            except Exception as e:
+                logger.error(f"Error getting {colName} does it exist?")
 
-            returnList.append(val)
 
         return returnList
 
@@ -133,7 +146,7 @@ class BloombergOutputter:
             request_def["request_name"], incl_static_data=True, include_id=True
         )
         col_name_list = list(
-            map(lambda x: x.get(BloombergDataDef.REQUEST_NAME_COL), data_type_list)
+            map(lambda x: x.get(BloombergDataDef.REPLY_COL_NAME), data_type_list)
         )
         db_col_name_list = ["business_date"]
         db_col_name_list.extend(
@@ -163,7 +176,7 @@ class BloombergOutputter:
 
         try:
             for row in csv_data:
-                params = self._get_db_params(row, todayStr, data_type_list)
+                params = self._get_db_params(request_status['name'], row, todayStr, data_type_list)
                 logger.info(params)
                 self.bbgdb.db_connection.execute_param_query(
                     query=insert_str, params=params, commit=True
@@ -203,7 +216,7 @@ class BloombergOutputter:
             request_def["request_name"], incl_static_data=True, include_id=True
         )
         col_name_list = list(
-            map(lambda x: x.get(BloombergDataDef.REQUEST_NAME_COL), data_type_list)
+            map(lambda x: x.get(BloombergDataDef.REPLY_COL_NAME), data_type_list)
         )
         file_col_name_list = ["BUSINESS_DATE"]
         file_col_name_list.extend(
@@ -224,7 +237,7 @@ class BloombergOutputter:
             with open(save_file, "w+") as f:
                 f.write(",".join(file_col_name_list) + "\n")
                 for row in csv_data:
-                    out_cols = self._get_output_fields(row, today_str, data_type_list)
+                    out_cols = self._get_output_fields(request_status['name'], row, today_str, data_type_list)
                     f.write(",".join(out_cols) + "\n")
         
             try:
@@ -331,6 +344,9 @@ def setup_logging():
 def main():
     setup_logging()
     bbgdb = BloombergDatabase()
+    x1 = "hello"
+    x2 = "hello,goodbyy"
+
     bbgOutputter = BloombergOutputter(
         bbgdb=bbgdb
     )
