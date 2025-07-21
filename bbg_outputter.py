@@ -71,6 +71,8 @@ class BloombergOutputter:
     def _clean(self, request_name : str, val : str):
         if (request_name == 'FuturesInfo'):
             return(self._futures_cleaner(val))
+        else:
+            return(val)
 
     def _get_db_params(self, request_name : str,
         row: dict[str, Any], today_str: str, data_type_list: list[dict[str, Any]]

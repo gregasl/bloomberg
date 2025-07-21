@@ -358,10 +358,15 @@ class BloombergDatabase:
             raise
 
     def update_process_status(self, request_id : str, identifier: str, request_name :str, process_type : str, process_status : str ="pending", process_error : str = "") -> None:
-        query : str = """insert into bloomberg_process_status 
+        query : str = """if exists(select 1 from bloomberg_process_status where request_id = ? and process_type = ?)
+            update bloomberg_process_status set processed_status = ? where request_id = ? and process_type = ?
+        else
+        insert into bloomberg_process_status 
            (request_id, identifier, name, process_type, processed_status, process_error)
            VALUES (?, ?, ?, ?, ?, ?)"""
-        params : tuple = (request_id, identifier, request_name, process_type, process_status, process_error)
+        params : tuple = (request_id, process_type,
+                          process_status, request_id, process_type,
+                          request_id, identifier, request_name, process_type, process_status, process_error)
         logger.info(query)
         logger.info(params)
         self.db_connection.execute_param_query(query, params, commit=True)

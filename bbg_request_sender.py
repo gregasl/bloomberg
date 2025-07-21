@@ -526,10 +526,10 @@ def main():
                 run_cusips = True
 
     if run_cusips:
-    #    request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
-    #    logger.info(f"Submitted Bloomberg TSY request: {request_id}")
-    #    request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
-    #    logger.info(f"Submitted Bloomberg MBS request: {request_id}")
+       request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
+       logger.info(f"Submitted Bloomberg TSY request: {request_id}")
+       request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
+       logger.info(f"Submitted Bloomberg MBS request: {request_id}")
        request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
        logger.info(f"Submitted Bloomberg FUT request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1

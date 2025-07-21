@@ -2,7 +2,8 @@ REM Bloomberg API setup
 @echo off
 
 set PROGRAM=%~1
-set ENVIRONMENT=%~2
+set PARAM1=%~2
+set ENVIRONMENT=%~3
 :: Check if the first parameter (%1) is empty
 if "%ENVIRONMENT%" == "" (
     set ENVIRONMENT="DEV"
@@ -23,16 +24,15 @@ IF "%ENVIRONMENT%" == "DEV" (
    set BBG_DATABASE=playdb
    set BBG_SQL_PORT=1433
    set LOG_DIR=output
-   set PYTHONPATH=//aslfile01/aslcap/IT/software/Development/python;//aslfile01/aslcap/IT/software/Production/python
+   set PYTHONPATH=//aslfile01/aslcap/IT/software/Production/python
 ) ELSE (
     set REDIS_HOST=cacheprod
     set REDIS_PORT=6379
     set REDIS_DB=0
     set BBG_SQL_SERVER=asldb03
-    set BBG_DATABASE=playdb
+    set BBG_DATABASE=Bloomberg
     set BBG_SQL_PORT=1433
-    REM change this once asql and asl_logging is released
-    set PYTHONPATH=//aslfile01/aslcap/IT/software/Development/python;//aslfile01/aslcap/IT/software/Production/python
+    set PYTHONPATH=//aslfile01/aslcap/IT/software/Production/python
     set LOG_DIR=output
 )
 
@@ -50,8 +50,15 @@ REM set MAX_RETRIES=20    # max retries before marking as failed
 REM set BATCH_SIZE=10     # max requests to process per iteration
 
 REM pip install redis pyodbc oauthlib requests-oauthlib
-echo "Environment is..."
-set
+REM echo "Environment is..."
+pushd \\aslfile01\aslcap\IT\Software\Development\Bloomberg\https_requests
+echo @on
+REM set
+REM call C:\Users\greg.mahoney\envs\bbgenv\Scripts\activate.bat
+rem call C:\Applications\VirtualEnvironments\Operations\Scripts\activate.bat
 echo Running %PROGRAM%
-python %PROGRAM% %PARAM1%
+REM python %PROGRAM% %PARAM1%
+REM python %PROGRAM% %PARAM1%
 
+C:\Users\greg.mahoney\envs\bbgenv\Scripts\python.exe %PROGRAM% %PARAM1%
+popd

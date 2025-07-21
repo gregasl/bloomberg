@@ -1,4 +1,4 @@
-use playdb
+use <database>
 go
 
 if exists(select 1 from INFORMATION_SCHEMA.TABLES
@@ -24,6 +24,8 @@ create table bloomberg_mbs_sec_data(
     wal numeric(10,6) NOT NULL,
     dur_adj_mid numeric(8,5) NULL,
     dur_adj_oas_mid numeric(8,5) NULL,
+    px_bid numeric(8,5) NULL,
+    px_disc_bid numeric(8,5) NULL,
     key_rate_dur_3mo numeric(8,5) NULL,
     key_rate_dur_6mo numeric(8,5) NULL,
     key_rate_dur_1yr numeric(8,5) NULL,

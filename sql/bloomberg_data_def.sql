@@ -1,4 +1,4 @@
-use playdb
+use <database> 
 GO
 
 IF EXISTS (SELECT * FROM sysobjects WHERE name='bloomberg_data_def' AND xtype='U')

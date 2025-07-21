@@ -1,4 +1,4 @@
-use playdb
+use <database>
 go
 
 if exists(select 1 from INFORMATION_SCHEMA.TABLES

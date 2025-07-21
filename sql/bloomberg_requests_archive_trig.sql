@@ -1,4 +1,4 @@
-use playdb
+use <database>
 go
 
 IF EXISTS (SELECT * FROM sysobjects WHERE name='bloomberg_requests_archive_trig' AND xtype='TR')
