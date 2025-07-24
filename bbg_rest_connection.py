@@ -93,6 +93,7 @@ class BloombergRestConnection:
         self.db_connection = _db_connection
         self.bbg_host = DEFAULT_BBG_HOST
         self.request_response_base = f"/eap/catalogs/{self.catalog}"
+        self.doc_request_base = f""
         self.poll_response_base = f"/eap/catalogs/{self.catalog}/content/responses/?requestIdentifier="
         self.response_handlers: list[ResponseHandler] = []
 

@@ -35,7 +35,7 @@ class BloombergOutputter:
     TimeFmt = "%H%M%S"
     DateRegex = re.compile(r'%D%')
     TimeRegex = re.compile(r'%T%')
-    FuturesCleaner = re.compile(r' Govt| Comdty')
+    FuturesCleaner = re.compile(r' Comdty')
 
     
     def __init__(
@@ -70,9 +70,27 @@ class BloombergOutputter:
 
     def _clean(self, request_name : str, val : str):
         if (request_name == 'FuturesInfo'):
-            return(self._futures_cleaner(val))
+          return(self._futures_cleaner(val))
         else:
-            return(val)
+         return(val)
+    
+
+    def _expand(self, colName, rowData) -> Any:
+        if isinstance(colName, dict):
+            toMergeData = []
+            for key in colName:
+               for col in colName[key]:
+                  rowKey = key + "." + col
+                  splitIt = rowData[rowKey].split('|')
+                  toMergeData.append(splitIt)
+
+            # only 2 now maybe N?
+            mergeData = list(map(lambda x, y: f"[{x},{y}]", toMergeData[0], toMergeData[1]))
+            oneStr = ",".join(mergeData)
+            oneStr = "".join(["'(", oneStr, ")'"])
+            return oneStr
+        else:
+            return rowData[colName]
 
     def _get_db_params(self, request_name : str,
         row: dict[str, Any], today_str: str, data_type_list: list[dict[str, Any]]
@@ -84,7 +102,8 @@ class BloombergOutputter:
                 continue
 
             try:
-                val = row[data_type_item[BloombergDataDef.REPLY_COL_NAME]]
+                colName = data_type_item[BloombergDataDef.REPLY_COL_NAME]
+                val = self._expand(colName, row)
                 data_type = data_type_item[BloombergDataDef.DATA_TYPE_COL]
                 if val == "true" or val == "false":
                      val = 0 if (val == "false") else 1
@@ -111,14 +130,19 @@ class BloombergOutputter:
         row: dict[str, Any], today_str: str, data_type_list: list[dict[str, Any]]
     ) -> list[Any]:
 
-        returnList = [today_str]
+        if today_str is not None:
+            returnList = [today_str]
+        else:
+            returnList = []
+
         for data_type_item in data_type_list:
             if data_type_item[BloombergDataDef.OUTPUT_COL_NAME] == "":
                 continue
 
             try:
                 colName = data_type_item[BloombergDataDef.REPLY_COL_NAME]
-                val = self._clean(request_name, row[colName]) # we will just let it throw...
+                expandval = self._expand(colName, row)
+                val = self._clean(request_name, expandval) # we will just let it throw...
 
                 returnList.append(val)
             except Exception as e:
@@ -209,6 +233,7 @@ class BloombergOutputter:
         request_def: dict[str, Any],
         in_data_type,
         in_data_content,
+        include_busday : bool = False
     ) -> None:
         csv_data = self._convert_csv_to_dict(in_data_content)
         save_file = BloombergOutputter.expand_file_name(request_def["save_file"])
@@ -220,7 +245,11 @@ class BloombergOutputter:
         col_name_list = list(
             map(lambda x: x.get(BloombergDataDef.REPLY_COL_NAME), data_type_list)
         )
-        file_col_name_list = ["BUSINESS_DATE"]
+        if (include_busday):
+            file_col_name_list = ["BUSINESS_DATE"]
+        else:
+            file_col_name_list = []
+
         file_col_name_list.extend(
             list(
                 map(
@@ -233,13 +262,14 @@ class BloombergOutputter:
             )
         )
         today = datetime.today()
-        today_str = today.strftime(BloombergOutputter.DateFmt)
+        today_str = today.strftime(BloombergOutputter.DateFmt) if (include_busday) else None
         logger.info(f"CSV MODE - writing to {save_file}")
         try:
             with open(save_file, "w+") as f:
                 f.write(",".join(file_col_name_list) + "\n")
                 for row in csv_data:
                     out_cols = self._get_output_fields(request_status['name'], row, today_str, data_type_list)
+                    #for col in out_cols:
                     f.write(",".join(out_cols) + "\n")
         
             try:
@@ -320,8 +350,14 @@ class BloombergOutputter:
 
         if is_ready:
             request_def: dict[str, Any] = self.requestDefinitions[request_status["name"]]
-            self.write_data(request_status, request_def, output_type)
-            logger.info(f"its ready {request_id} for {output_type}")
+            try:
+                self.write_data(request_status, request_def, output_type)
+                self.bbgdb.complete_data_process(request_id)
+                logger.info(f"its ready {request_id} for {output_type}")
+            except Exception as e:
+                self.bbgdb.error_data_process(request_id)
+                raise  # is this needed what so we do with it
+           
 
 
     def output_ready_requests(self):
@@ -346,8 +382,6 @@ def setup_logging():
 def main():
     setup_logging()
     bbgdb = BloombergDatabase()
-    x1 = "hello"
-    x2 = "hello,goodbyy"
 
     bbgOutputter = BloombergOutputter(
         bbgdb=bbgdb

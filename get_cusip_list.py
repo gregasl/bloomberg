@@ -6,6 +6,7 @@ import pandas as pd
 import os
 import logging
 from ASL.utils.asl_logging import ASL_Logging
+from ASL.utils.asql import SQLObject # evenutally convert all sql to this...
 # from ASL import ASL_Logging
 import datetime
 import ASL
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 BDAY = '//aslfile01/ASLCAP/Operations/TodayHoliday.txt'
 
+####
+# NOTE TAKEN RIGHT FROM THE OLD lookup
+##
 def wi() -> pd.DataFrame:
     today = datetime.datetime.today().date()
  
@@ -147,29 +151,82 @@ def get_phase3_mbs_cusips() -> list[str]:
   ret_list : list[str] = df['CUSIP_NUMBER']
   return ret_list
 
+def futures_contracts(ticker_bases : list[str]):
+    '''
+    Finding correct contract for the request upload
+    :return: A pandas dataframe with correct contract name
+    '''
+
+    # Today's date
+    today = datetime.datetime.today()
+    # Read contract base
+    res = pd.DataFrame(columns=['CONTRACT'])
+    df = pd.DataFrame(ticker_bases, columns=['CONTRACT'])
+    # Request different contracts in different time. We want to get next 3 active contract
+    #
+    # Contract ends with last number of the year Ex if it is 2021, the contract ends with 1
+    # There are only 4 contracts each year:
+    # Mar:  H
+    # Jun:  M
+    # Sep:  U
+    # Dec:  Z
+    cusip_months = {3, 'H', 6, 'M', 9, 'U', 12, 'Z'}
+
+    if today.month < 4:
+        lst = ['H', 'M', 'U']
+        for i in lst:
+            res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + i + str(today.year)[-1])])
+            res = res.reset_index(drop=True)
+    elif today.month < 7:
+        lst = ['M', 'U', 'Z']
+        for i in lst:
+            res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + i + str(today.year)[-1])])
+            res = res.reset_index(drop=True)
+    elif today.month < 10:
+        res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + 'U' + str(today.year)[-1])])
+        res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + 'Z' + str(today.year)[-1])])
+        res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + 'H' + str(today.year + 1)[-1])])
+        res = res.reset_index(drop=True)
+
+    else:
+        res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + 'Z' + str(today.year)[-1])])
+        res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + 'H' + str(today.year + 1)[-1])])
+        res = pd.concat([res, pd.DataFrame(df['CONTRACT'] + 'M' + str(today.year + 1)[-1])])
+        res = res.reset_index(drop=True)
+    return res
+
 def get_futures_tickers() -> list[str]:
   try:
-        ticker_database = os.environ.get("BBG_DATABASE", "Bloomberg") 
-        ALSConnect = f'DRIVER={{SQL Server}};SERVER=ASLDB03;DATABASE={ticker_database};Trusted_Connection=yes'
-        connection = pyodbc.connect(ALSConnect, autocommit=True)
+        ## username none defaults to microsoft cresds
+        ticker_database = os.environ.get("BBG_DATABASE", "Bloomberg")
+        server = os.environ.get("BBG_SQL_SERVER", "ASLDB03")
+        port = os.environ.get("BBG_SQL_PORT", "1433") 
+        ## crazy this does not use port?
+        db = SQLObject(
+            server=server, username=None, database=ticker_database
+        )
+        
   except Exception as e:
     logger.error("Error connecting to DB {e}")
-
   
   sql = """
-    SELECT  sec_id as ticker
+    SELECT sec_id as ticker_base
     FROM dbo.bloomberg_sec_id where sec_id_type = 'FUT';
     """
-  
   try:
-    df = pd.read_sql(sql, connection)
-    connection.close()
-    df['ticker'] = df['ticker'].str.strip()
-    df = df.drop_duplicates()
-    ret_list : list[str] = df['ticker']
-    return ret_list
+        ticker_bases = []
+        db_ticker_bases = db.fetch(sql, 'LIST')
+        for ticker in db_ticker_bases:
+            ticker_bases.append(ticker[0])
+
+        db.close()
+        res = futures_contracts(ticker_bases=ticker_bases)
+        ret_list : list[str] = res['CONTRACT']
+        return ret_list
   except Exception as e:
-    logger.error(f"Unable to select cusips for futures request {e}")
+        logger.error(f"Unable to select cusips for futures request {e}")
+        if db:
+            db.close()
 
   return []
 

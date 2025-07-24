@@ -42,11 +42,6 @@ json_payload = '''{
                 "@type": "Identifier",
                 "identifierType": "CUSIP",
                 "identifierValue": "91282CMV0"
-            },
-            {
-                "@type": "Identifier",
-                "identifierType": "CUSIP",
-                "identifierValue": "91282CGS4"
             }
         ]
     },
@@ -54,13 +49,8 @@ json_payload = '''{
         "@type": "DataFieldList",
         "contains": [
             {
-                "mnemonic": "SECURITY_DES"
-            },
-            {
-                "mnemonic": "MATURITY"
-            },
-            {
-                "mnemonic": "ISSUE_DT"
+                "mnemonic": "SECURITY_DES",
+                "returnFieldDocumentation": "true"
             }
         ]
     },

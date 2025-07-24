@@ -21,6 +21,7 @@ class BloombergDataDef :
     ):
         self.bbg_database : BloombergDatabase = bbg_database
         ## assumes lists are sorted by col order in bbg_database (done locally)
+        # self.data_defs : dict[str, list[dict[str, Any]]] = bbg_database.load_bbg_column_defs('FuturesInfo')
         self.data_defs : dict[str, list[dict[str, Any]]] = bbg_database.load_bbg_column_defs()
 
 

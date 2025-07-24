@@ -41,7 +41,7 @@ REM $env:REDIS_PASSWORD=your_password  REM optional
 REM $env:SQL_USERNAME=your_username  REM optional if using Windows auth
 REM $env:SQL_PASSWORD=your_password REM optional if using Windows auth
 REM set to true for Windows authentication
-set SQL_USE_WINDOWS_AUTH "true"  
+set "SQL_USE_WINDOWS_AUTH true"  
 
 REM these are in a db table now 
 REM Polling Configuration (optional)

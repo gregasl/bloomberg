@@ -110,7 +110,7 @@ class BloombergRedis:
 
     def clear_queue(self) -> None:
         try:
-            self.redis_client.zremrangebyscore(self.queue, HIGH_CMD_PRIORITY, LAST_CMD_PRIORITY)
+            self.redis_client.delete(self.queue)
         except Exception as e:
             logger.error(f"Error clearing out the queue {BloombergRedis.REQUEST_QUEUE}: {e}")
             raise

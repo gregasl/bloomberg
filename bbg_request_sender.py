@@ -38,7 +38,7 @@ from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase
 logger = logging.getLogger(__name__)
 
 RunningState = RunState.INITIALIZING
-OnlyOne = False
+OnlyOne = True
 
 class BloombergRequestSender:
     MAX_LOOPS = -1  # wait for exit...
@@ -220,6 +220,9 @@ class BloombergRequestSender:
                     elif cmd_upper == RESUME_CMD:
                         RunningState = RunState.RESUMING
                         self.redis_connection.remove_request(orig_request_json)
+                        break
+                    elif cmd_upper == CLR_QUEUES:
+                        self.redis_connection.clear_queue()  # no need to remove request b/c its gone...
                         break
                     else:  # process data commands
                         bbg_request : BloombergRequest = None
@@ -426,7 +429,7 @@ class BloombergRequestSender:
         universe = {
             "@type": "Universe",
             "contains": [
-                {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": cusip}
+                {"@type": "Identifier", "identifierType": "CUSIP", "identifierValue": f'{cusip}'}
                 for cusip in cusips
             ],
         }
@@ -526,10 +529,14 @@ def main():
                 run_cusips = True
 
     if run_cusips:
-       request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
-       logger.info(f"Submitted Bloomberg TSY request: {request_id}")
-       request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
-       logger.info(f"Submitted Bloomberg MBS request: {request_id}")
+    #   request_id = sender.redis_connection.submit_command(CLR_QUEUES)
+    #   logger.info(f"Submitted Bloomberg MBS request: {request_id}")
+#       request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
+#       logger.info(f"Submitted Bloomberg TSY request: {request_id}")
+       # request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
+      #  logger.info(f"Submitted Bloomberg MBS request: {request_id}")
+      # request_id = sender.redis_connection.submit_command(REQUEST_FLD_DOC)
+      # logger.info(f"Submitted Bloomberg MBS request: {request_id}")
        request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
        logger.info(f"Submitted Bloomberg FUT request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1

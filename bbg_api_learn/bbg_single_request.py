@@ -3,11 +3,13 @@ import uuid
 import orjson
 import datetime
 import time
+import ASL.utils.secrets
 
 from pprint import pprint
 from urllib.parse import urljoin
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
+
 
 # Set the following environment variables
 catalog = os.environ["BLOOMBERG_DL_ACCOUNT_NUMBER"] # Data License Account Number provided by your account rep/admins
@@ -19,6 +21,16 @@ HOST = 'https://api.bloomberg.com'
 OAUTH2_ENDPOINT = 'https://bsso.blpprofessional.com/ext/api/as/token.oauth2'
 
 client = BackendApplicationClient(client_id=client_id)
+catalog = catalog or os.environ.get("BLOOMBERG_DL_ACCOUNT_NUMBER", "")
+client_id = client_id or ASL.utils.secrets.my_secrets["BBG_REST_API_KEY"]
+client_secret = (
+            client_secret or ASL.utils.secrets.my_secrets["BBG_REST_API_PWD"]
+        )
+
+if not all([catalog, client_id, client_secret]):
+            raise ValueError(
+                "Bloomberg credentials not provided. Set environment variables or pass parameters."
+            )
 
 # This SESSION object automatically adds the Authorization header
 SESSION = OAuth2Session(client=client, auto_refresh_url=OAUTH2_ENDPOINT,
@@ -41,12 +53,14 @@ json_payload = '''{
             {
                 "@type": "Identifier",
                 "identifierType": "CUSIP",
-                "identifierValue": "91282CMV0"
+                "identifierValue": "91282CMV0",
+                "returnFieldDocumentation": "true"
             },
             {
                 "@type": "Identifier",
                 "identifierType": "CUSIP",
-                "identifierValue": "91282CGS4"
+                "identifierValue": "91282CGS4",
+                "returnFieldDocumentation": "true"
             }
         ]
     },

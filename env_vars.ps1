@@ -6,7 +6,7 @@ Set-PSDebug -Trace 2
 
 $env:ENVIRONMENT=$ENVIRONMENT
 $env:BLOOMBERG_DL_ACCOUNT_NUMBER=791793
-
+$env:PYTHONPATH="\\aslfile01\aslcap\IT\software\Production\python"
 # Redis
 $env:REDIS_HOST="cacheuat"
 $env:REDIS_PORT=6379

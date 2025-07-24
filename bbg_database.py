@@ -2,6 +2,7 @@ import datetime
 from datetime import timedelta
 import json  # for storing in db
 import os
+import re
 import logging
 from typing import Any, Optional, Tuple
 import uuid
@@ -15,6 +16,9 @@ logger = logging.getLogger(__name__)
 ## TO DO - make status constants...
 
 class BloombergDatabase:
+    DotRegEx = re.compile(r'\.')
+    CommaRegEx = re.compile(r',')
+
     def __init__(
         self,
         server: str = None,
@@ -37,6 +41,7 @@ class BloombergDatabase:
         self.database = database or os.environ.get("BBG_DATABASE", "")
         self.username = username
 
+
         if not all([self.server, self.port, self.database]):
             raise ValueError(
                 "Database connection items not set 'host', 'port', 'database'"
@@ -57,11 +62,23 @@ class BloombergDatabase:
         """Store request in SQL Server database"""
         try:
             query: str = """
-                    INSERT INTO bloomberg_requests 
-                    (request_id, identifier, name, title, payload, priority, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    if exists(select 1 from bloomberg_requests where request_id = ?)
+                        update bloomberg_requests set identifier = ?, name = ?, title = ?, payload = ?, priority = ?, status = ?
+                            where request_id = ?
+                    else
+                      INSERT INTO bloomberg_requests 
+                       (request_id, identifier, name, title, payload, priority, status)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)
                 """
             params : tuple = (
+                request.request_id,
+                request.identifier,
+                request.request_name,
+                title,
+                json.dumps(request.request_payload),
+                request.priority,
+                status,
+                request.request_id,
                 request.request_id,
                 request.identifier,
                 request.request_name,
@@ -228,8 +245,8 @@ class BloombergDatabase:
             ## we need a way to only do 1 or 2 not all 3 all the time
             query: str = """
                 SELECT br.request_id, bot.output_type,  br.identifier, br.name
-                FROM bloomberg_requests br, bloomberg_output_types bot
-                WHERE br.status = 'completed' and
+                FROM bloomberg_requests br, bloomberg_output_types bot, bloomberg_data brd
+                WHERE br.status = 'completed' and br.request_id = brd.request_id and brd.status != 'completed' and
                 not exists(select 1 from bloomberg_process_status bps where bps.processed_status = 'processed' 
                 and br.request_id = bps.request_id and bot.output_type = bps.process_type )
             """
@@ -266,7 +283,7 @@ class BloombergDatabase:
             csv_data (str): The CSV-formatted data to be stored.
         Raises:
             Exception: Logs and raises any exception that occurs during the database operation."""
-
+        # what to do if that row is already there.
         try:
             query: str = """
                     INSERT INTO bloomberg_data (request_id, identifier, request_name, data_type, data_content, ts)
@@ -290,6 +307,7 @@ class BloombergDatabase:
     def store_json_data(self, request_id: str, identifier: str, request_name : str, json_data: dict[str, Any]):
         """Store JSON data in database"""
         try:
+             # what to do if that row is already there.
             query: str = """
                     INSERT INTO bloomberg_data (request_id, data_type, request_name, data_content, created_at)
                     VALUES (?, ?,'json', ?, GETDATE())
@@ -311,6 +329,7 @@ class BloombergDatabase:
     def store_raw_response(self, request_id: str, identifier: str, request_name, response_data: Any):
         """Store raw response data in database"""
         try:
+             # what to do if that row is already there. ???  delete it?  
             query: str = """
                 INSERT INTO bloomberg_data (request_id, data_type, request_name, data_content, created_at)
                 VALUES (?, 'raw', ?, ?, GETDATE())
@@ -330,6 +349,30 @@ class BloombergDatabase:
         except Exception as e:
             logger.error(f"Error storing raw response: {e}")
             raise
+
+    def update_data_status(self, request_id, status):
+        try:
+             # what to do if that row is already there. ???  delete it?  
+            query: str = "update bloomberg_data set status = ? where request_id = ?"
+            # not sure about json dumps raw?
+            params: tuple = (
+                status,
+                request_id
+            )
+
+            logger.info(query + " " + request_id)
+            self.db_connection.execute_param_query(
+                query=query, params=params, commit=True
+            )
+        except Exception as e:
+            logger.error(f"Error storing raw response: {e}")
+            raise
+
+    def complete_data_process(self, request_id):
+        self.update_data_status(request_id, 'completed')
+
+    def error_data_process(self, request_id):
+        self.update_data_status(request_id, 'error')
 
     def store_poll_error_response(
         self, request_id: str, error_message: str
@@ -430,6 +473,32 @@ class BloombergDatabase:
             raise
 
 
+    # look for columns w/ dots '.' and split them...
+    # this is for the annoying futures rows
+    # later we need to split hesr columns on "|" and re construct them
+    def _preprocess_row(self, row : dict[str, Any]) -> dict[str, Any]:
+        returnDict : dict[str, Any] = {}
+
+        for key, value in row.items():
+            value_type = type(value)
+            # multi column column - have a comma and needs to be a string.
+            if isinstance(value, str)and(BloombergDatabase.CommaRegEx.search(value)):
+                # split cols by comma 
+                value = value.replace(" ", "")  # may want to move this and is instance
+                splitCols : str = value.split(',')
+                for scol in splitCols:
+                    subParts = scol.split('.')
+                    if key in returnDict:
+                        returnDict[key][subParts[0]].extend(subParts[1:])
+                    else:
+                        returnDict[key] = {}
+                        returnDict[key][subParts[0]]= subParts[1:]
+            else:
+                returnDict[key] = value  ## vanilla  
+
+        return returnDict
+            
+
 
     def _sort_columns(self, in_list : list[dict[str, Any]]) -> list[dict[str, Any]]:
         return(sorted(in_list, key=lambda i: i['col_order']))
@@ -440,18 +509,22 @@ class BloombergDatabase:
     output_col_name, db_col_name 
     FROM bloomberg_data_def where suppress_sending = 0 """
             if request_name is not None:
-                query = query + f'and request_name = {request_name}'
+                query = query + f"and request_name = '{request_name}'"
 
             loaded_data = self.db_connection.fetch(query, 'DICT')
             def_data : dict[str, list[dict[str, Any]]] = {}
 
             for row in loaded_data:
-                if row['request_name'] in def_data:
-                    def_data[row['request_name']].append(row)
-                else:
-                    def_data[row['request_name']] = [row]                    
+                 req_name = row['request_name']
+                 # logger.info(f"****** {req_name} ******")
 
-            for req_name in def_data:
+                 row = self._preprocess_row(row)
+                 if req_name in def_data:
+                    def_data[req_name].append(row)
+                 else:
+                    def_data[req_name] = [row]                    
+
+            for request_name in def_data:
                 tmp_list =  self._sort_columns(def_data[req_name])
                 def_data[req_name] = tmp_list # only for debugging - remove later
 

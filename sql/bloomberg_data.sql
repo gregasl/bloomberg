@@ -8,13 +8,14 @@ END
 GO
 
 CREATE TABLE bloomberg_data (
-    request_id NVARCHAR(50) NOT NULL PRIMARY KEY,
+    request_id NVARCHAR(50) NOT NULL,
     identifier NVARCHAR(100) NOT NULL,
     request_name NVARCHAR(64) NOT NULL,
     data_type NVARCHAR(50) DEFAULT 'csv',
     data_content NTEXT,
     status NVARCHAR(12) DEFAULT 'pending' NOT NULL  CONSTRAINT bbg_data_status_check CHECK (status in ('pending', 'processing', 'completed')),
-    ts DATETIME2 DEFAULT GETDATE()
+    ts DATETIME2 DEFAULT GETDATE(),
+    PRIMARY key (request_id, data_type)
 )
 go
 

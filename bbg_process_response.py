@@ -1,5 +1,5 @@
 import logging
-from ASL import ASL_Logging
+from ASL.utils.asl_logging import ASL_Logging
 from bbg_database import BloombergDatabase
 
 
