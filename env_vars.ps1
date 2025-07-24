@@ -30,5 +30,5 @@ if ($ENVIRONMENT -eq "PROD") {
   $env:BBG_DATABASE="Bloomberg"
   $env:REDIS_HOST="cacheprod"
 }
- Set-PSDebug -Trace 0
-# pip install redis pyodbc oauthlib requests-oauthlib
+Set-PSDebug -Trace 0
+# pip install redis pyodbc oauthlib requests-oauthlib pandas numpy O365 orjson
