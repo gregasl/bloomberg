@@ -38,7 +38,7 @@ from get_cusip_list import get_phase3_tsy_cusips, get_futures_tickers, get_phase
 logger = logging.getLogger(__name__)
 
 RunningState = RunState.INITIALIZING
-OnlyOne = True
+OnlyOne = False
 
 class BloombergRequestSender:
     MAX_LOOPS = -1  # wait for exit...
