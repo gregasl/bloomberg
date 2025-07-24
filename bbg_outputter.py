@@ -87,7 +87,7 @@ class BloombergOutputter:
             # only 2 now maybe N?
             mergeData = list(map(lambda x, y: f"[{x},{y}]", toMergeData[0], toMergeData[1]))
             oneStr = ",".join(mergeData)
-            oneStr = "".join(["'(", oneStr, ")'"])
+            oneStr = "".join(['"(', oneStr, ')"'])
             return oneStr
         else:
             return rowData[colName]

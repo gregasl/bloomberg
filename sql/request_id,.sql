@@ -1,7 +1,0 @@
-request_id, 
-identifier,
-name,
-process_type,
-processed_status, 
-process_error,
-ts,

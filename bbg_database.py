@@ -524,7 +524,7 @@ class BloombergDatabase:
                  else:
                     def_data[req_name] = [row]                    
 
-            for request_name in def_data:
+            for req_name in def_data:
                 tmp_list =  self._sort_columns(def_data[req_name])
                 def_data[req_name] = tmp_list # only for debugging - remove later
 
