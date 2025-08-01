@@ -32,6 +32,8 @@ def wi() -> pd.DataFrame:
     connection = pyodbc.connect(connct)
     df = pd.read_sql(sql, connection)
     connection.commit()
+    connection.close()
+
     df = df[df['Term'].str.contains('Year')]
     df['CUSIP'] = df['CUSIP'].str.strip()
     df = df.rename(columns={'CUSIP': 'CUSIP_NUMBER'})
@@ -131,7 +133,7 @@ def get_phase3_tsy_cusips() -> list[str]:
     return ret_list
 
 
-def get_phase3_mbs_cusips() -> list[str]:
+def get_phase3_mbs_cusips() -> list[tuple]:
   try:
         FISconnct = 'DRIVER={SQL Server};SERVER=ASLFISSQL;DATABASE=ASLFIS;UID=aslrisk;PWD=1Welcome2!'
         connection = pyodbc.connect(FISconnct, autocommit=True)
@@ -141,14 +143,17 @@ def get_phase3_mbs_cusips() -> list[str]:
   
         # ASL.send_email.email('CONNECTION ERROR - Mortgage - Request Builder', 'Hi, \n\nThere is a connection error with ASLFIS01.')
   sql = '''\
-    SELECT CUSIP_NUMBER, SEC_TYPE
-    FROM dbo.FPDMST;
+   SELECT secs.CUSIP_NUMBER, secs.SEC_TYPE, prc.CURR_PRICE
+    FROM dbo.FPDMST secs
+    LEFT JOIN  dbo.CMVDAT prc on
+    secs.CUSIP_NUMBER = prc.CUSIP_NUMBER and secs.FIRM_NBR = prc.FIRM_NBR 
+    where secs.FIRM_NBR = '66' and secs.SEC_TYPE = 'M'
     '''
   df = pd.read_sql(sql, connection)
-  df = df[df['SEC_TYPE'] == 'M'][['CUSIP_NUMBER']]
+  df = df[df['SEC_TYPE'] == 'M'][['CUSIP_NUMBER','CURR_PRICE']]
   df['CUSIP_NUMBER'] = df['CUSIP_NUMBER'].str.strip()
   df = df.drop_duplicates()
-  ret_list : list[str] = df['CUSIP_NUMBER']
+  ret_list : list[tuple] = list(zip(df.CUSIP_NUMBER, df.CURR_PRICE))
   return ret_list
 
 def futures_contracts(ticker_bases : list[str]):

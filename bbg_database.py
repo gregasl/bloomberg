@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class BloombergDatabase:
     DotRegEx = re.compile(r'\.')
     CommaRegEx = re.compile(r',')
+    MAX_SAVE_SIZE = 4000
 
     def __init__(
         self,
@@ -70,12 +71,19 @@ class BloombergDatabase:
                        (request_id, identifier, name, title, payload, priority, status)
                       VALUES (?, ?, ?, ?, ?, ?, ?)
                 """
+            request_payload = json.dumps(request.request_payload)
+            payload_size = len(request_payload)
+            logger.debug(f"payload size is {payload_size}")
+            if (payload_size > BloombergDatabase.MAX_SAVE_SIZE):
+                logger.warning(f"request_payload size {payload_size} is larger than database column size of {BloombergDatabase.MAX_SAVE_SIZE} trimming")
+                request_payload = request_payload[:BloombergDatabase.MAX_SAVE_SIZE]
+
             params : tuple = (
                 request.request_id,
                 request.identifier,
                 request.request_name,
                 title,
-                json.dumps(request.request_payload),
+                request_payload,
                 request.priority,
                 status,
                 request.request_id,
@@ -83,7 +91,7 @@ class BloombergDatabase:
                 request.identifier,
                 request.request_name,
                 title,
-                json.dumps(request.request_payload),
+                request_payload,
                 request.priority,
                 status,
             )

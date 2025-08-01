@@ -6,7 +6,8 @@ Set-PSDebug -Trace 2
 
 $env:ENVIRONMENT=$ENVIRONMENT
 $env:BLOOMBERG_DL_ACCOUNT_NUMBER=791793
-$env:PYTHONPATH="\\aslfile01\aslcap\IT\software\Production\python"
+$env:PYTHONPATH="\\aslfile01\aslcap\IT\software\Development\python;\\aslfile01\aslcap\IT\software\Production\python"
+# $env:PYTHONPATH="\\aslfile01\aslcap\IT\software\Production\python"
 # Redis
 $env:REDIS_HOST="cacheuat"
 $env:REDIS_PORT=6379
@@ -27,6 +28,7 @@ $env:MAX_RETRIES=20    # max retries before marking as failed
 $env:BATCH_SIZE=10     # max requests to process per iteration
 
 if ($ENVIRONMENT -eq "PROD") {
+  $env:PYTHONPATH="\\aslfile01\aslcap\IT\software\Production\python"
   $env:BBG_DATABASE="Bloomberg"
   $env:REDIS_HOST="cacheprod"
 }

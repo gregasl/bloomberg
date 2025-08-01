@@ -1,32 +1,35 @@
-import os
-import io
-import datetime
-import uuid
-from  urllib.parse import urljoin
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.StreamEntryID;
 
-import requests
-from oauthlib.oauth2 import BackendApplicationClient
-from requests_oauthlib import OAuth2Session
+public class JedisStreamConsumerGroupExample {
 
-client_id = os.environ['BLOOMBERG_DL_CLIENT_ID'] # From credential file
-client_secret = os.environ['BLOOMBERG_DL_CLIENT_SECRET'] # From credential file
+    public static void main(String[] args) {
+        // Replace with your Redis host and port
+        String redisHost = "localhost";
+        int redisPort = 6379;
 
-HOST = 'https://api.bloomberg.com'
-OAUTH2_ENDPOINT = 'https://bsso.blpprofessional.com/ext/api/as/token.oauth2'
+        try (Jedis jedis = new Jedis(redisHost, redisPort)) {
+            String streamKey = "myStream";
+            String groupName = "myConsumerGroup";
 
-client = BackendApplicationClient(client_id=client_id)
+            // 1. Create the stream if it doesn't exist (optional, but good for testing)
+            // You can also add some messages to the stream before creating the group
+            jedis.xadd(streamKey, StreamEntryID.NEW_ENTRY, new java.util.HashMap<String, String>() {{
+                put("field1", "value1");
+            }});
 
-# This SESSION object automatically adds the Authorization header
-SESSION = OAuth2Session(client=client, auto_refresh_url=OAUTH2_ENDPOINT,
-                        auto_refresh_kwargs={'client_id': client_id},
-                        token_updater=lambda x: x)
+            // 2. Create the consumer group
+            // The "$" signifies that the group should start consuming from the latest message
+            // `true` for MKSTREAM means it will create the stream if it doesn't exist
+            jedis.xgroupCreate(streamKey, groupName, StreamEntryID.LAST_UNCONSUMED_ENTRY, true);
 
-token = SESSION.fetch_token(token_url=OAUTH2_ENDPOINT, client_secret=client_secret)
+            System.out.println("Consumer group '" + groupName + "' created for stream '" + streamKey + "'");
 
+            // You can now use jedis.xreadgroup() to consume messages from this group
+            // ... (further code for consuming messages)
 
-catalogs_url = urljoin(HOST, '/eap/catalogs/')
-headers = {'api-version':'2'}
-response = SESSION.get(catalogs_url, headers=headers)
-
-print(f"Status Code: {response.status_code}")
-print(response.json())
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

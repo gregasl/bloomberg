@@ -9,9 +9,8 @@ from pprint import pprint
 from urllib.parse import urljoin
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
-
-
 # Set the following environment variables
+
 catalog = os.environ["BLOOMBERG_DL_ACCOUNT_NUMBER"] # Data License Account Number provided by your account rep/admins
 catalog = catalog.removeprefix("DL ")
 client_id = os.environ['BLOOMBERG_DL_CLIENT_ID'] # from credential file
@@ -54,13 +53,11 @@ json_payload = '''{
                 "@type": "Identifier",
                 "identifierType": "CUSIP",
                 "identifierValue": "91282CMV0",
-                "returnFieldDocumentation": "true"
             },
             {
                 "@type": "Identifier",
                 "identifierType": "CUSIP",
                 "identifierValue": "91282CGS4",
-                "returnFieldDocumentation": "true"
             }
         ]
     },
