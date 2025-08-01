@@ -549,14 +549,14 @@ def main():
     if run_cusips:
     #   request_id = sender.redis_connection.submit_command(CLR_QUEUES)
     #   logger.info(f"Submitted Bloomberg MBS request: {request_id}")
-     #  request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
-     #  logger.info(f"Submitted Bloomberg TSY request: {request_id}")
+       request_id = sender.redis_connection.submit_command(REQUEST_TSY_CUSIPS)
+       logger.info(f"Submitted Bloomberg TSY request: {request_id}")
        request_id = sender.redis_connection.submit_command(REQUEST_MBS_CUSIPS)
        logger.info(f"Submitted Bloomberg MBS request: {request_id}")
       # request_id = sender.redis_connection.submit_command(REQUEST_FLD_DOC)
       # logger.info(f"Submitted Bloomberg MBS request: {request_id}")
-     #  request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
-     #  logger.info(f"Submitted Bloomberg FUT request: {request_id}")
+       request_id = sender.redis_connection.submit_command(REQUEST_FUT_CUSIPS)
+       logger.info(f"Submitted Bloomberg FUT request: {request_id}")
        # after score commadnds are ordered lexigraphically so... lets update cmd to +1
        request_id = sender.redis_connection.submit_command(EXIT_CMD, priority=DEFAULT_CMD_PRIORITY+1)
        logger.info(f"Sent EXIT!")
